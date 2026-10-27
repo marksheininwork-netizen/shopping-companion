@@ -29,6 +29,8 @@ type ShoppingItem = {
   price?: number;
   url?: string;
   note?: string;
+  priority?: "Low" | "Normal" | "High";
+  store?: string;
 };
 
 const categories: Category[] = [
@@ -56,7 +58,9 @@ export default function App() {
   const [newPrice, setNewPrice] = useState("");
   const [newUrl, setNewUrl] = useState("");
   const [newNote, setNewNote] = useState("");
-  const [sortBy, setSortBy] = useState<"newest" | "name" | "price">("newest");
+  const [newStore, setNewStore] = useState("");
+  const [newPriority, setNewPriority] = useState<"Low" | "Normal" | "High">("Normal");
+  const [sortBy, setSortBy] = useState<"newest" | "name" | "price" | "priority">("newest");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "completed">("all");
 
   useEffect(() => {
@@ -77,7 +81,7 @@ export default function App() {
           if (!item || typeof item !== "object") return false;
           const entry = item as Record<string, unknown>;
           return typeof entry.id === "string" && typeof entry.name === "string" &&
-            entry.name.length <= 500 && (entry.price === undefined || (typeof entry.price === "number" && Number.isFinite(entry.price) && entry.price >= 0)) && (entry.url === undefined || (typeof entry.url === "string" && entry.url.startsWith("https://"))) && (entry.note === undefined || (typeof entry.note === "string" && entry.note.length <= 2000)) && categories.includes(entry.category as Category) &&
+            entry.name.length <= 500 && (entry.store === undefined || (typeof entry.store === "string" && entry.store.length <= 100)) && (entry.priority === undefined || ["Low","Normal","High"].includes(entry.priority as string)) && (entry.price === undefined || (typeof entry.price === "number" && Number.isFinite(entry.price) && entry.price >= 0)) && (entry.url === undefined || (typeof entry.url === "string" && entry.url.startsWith("https://"))) && (entry.note === undefined || (typeof entry.note === "string" && entry.note.length <= 2000)) && categories.includes(entry.category as Category) &&
             typeof entry.completed === "boolean" && Number.isSafeInteger(entry.quantity) &&
             (entry.quantity as number) >= 1 && (entry.quantity as number) <= 100000;
         })) throw Error("Invalid shopping items");
@@ -112,7 +116,9 @@ export default function App() {
         quantity: 1,
         ...(newPrice.trim() && Number.isFinite(Number(newPrice)) && Number(newPrice) >= 0 ? { price: Number(newPrice) } : {}),
         ...(newUrl.trim().startsWith("https://") ? { url: newUrl.trim() } : {}),
-        ...(newNote.trim() ? { note: newNote.trim() } : {})
+        ...(newNote.trim() ? { note: newNote.trim() } : {}),
+        ...(newStore.trim() ? { store: newStore.trim() } : {}),
+        priority: newPriority
       },
       ...previous
     ]);
@@ -121,6 +127,17 @@ export default function App() {
     setNewPrice("");
     setNewUrl("");
     setNewNote("");
+    setNewStore("");
+    setNewPriority("Normal");
+  }
+
+  function clearPurchased() {
+    if (window.confirm("Remove all purchased items from this category?")) setItems((previous) => previous.filter((item) => item.category !== category || !item.completed));
+  }
+
+  function duplicateItem(id: string) {
+    const item = items.find((entry) => entry.id === id);
+    if (item) setItems((previous) => [{ ...item, id: crypto.randomUUID(), completed: false }, ...previous]);
   }
 
   function toggleItem(id: string) {
@@ -162,7 +179,7 @@ export default function App() {
       item.category === category &&
       item.name.toLowerCase().includes(search.trim().toLowerCase()) &&
       (statusFilter === "all" || (statusFilter === "completed" ? item.completed : !item.completed))
-  ).sort((a, b) => sortBy === "name" ? a.name.localeCompare(b.name) : sortBy === "price" ? (b.price ?? 0) - (a.price ?? 0) : 0);
+  ).sort((a, b) => sortBy === "name" ? a.name.localeCompare(b.name) : sortBy === "price" ? (b.price ?? 0) - (a.price ?? 0) : sortBy === "priority" ? (["Low","Normal","High"].indexOf(b.priority ?? "Normal") - ["Low","Normal","High"].indexOf(a.priority ?? "Normal")) : 0);
 
   const remaining = items.filter((item) => !item.completed).length;
   const estimatedTotal = items.filter((item) => !item.completed).reduce((sum, item) => sum + (item.price ?? 0) * item.quantity, 0);
@@ -246,9 +263,8 @@ export default function App() {
                 <h2>{category}</h2>
                 <p>Manage your {category.toLowerCase()} items.</p>
               </div>
-              <span className="item-total">
-                {visibleItems.length} items
-              </span>
+              <span className="item-total">{visibleItems.length} items</span>
+              <button type="button" className="primary-button" onClick={clearPurchased} disabled={!items.some((item) => item.category === category && item.completed)}>Clear purchased</button>
             </div>
 
             <div className="add-form">
@@ -270,7 +286,9 @@ export default function App() {
             <div className="add-form">
               <input type="number" min="0" step="0.01" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="Estimated unit price ($)" aria-label="Estimated unit price" />
               <input type="url" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://product-link" aria-label="Product link" />
-              <input value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Optional note" aria-label="Shopping item note" />
+              <input value={newNote} maxLength={2000} onChange={(e) => setNewNote(e.target.value)} placeholder="Optional note" aria-label="Shopping item note" />
+              <input value={newStore} maxLength={100} onChange={(e) => setNewStore(e.target.value)} placeholder="Store" aria-label="Preferred store" />
+              <select value={newPriority} onChange={(e) => setNewPriority(e.target.value as typeof newPriority)} aria-label="Item priority"><option>Low</option><option>Normal</option><option>High</option></select>
             </div>
             <div className="search-box">
               <Search size={19} />
@@ -290,7 +308,7 @@ export default function App() {
               ))}
             </div>
 
-            <div className="add-form"><label htmlFor="shopping-sort">Sort by</label><select id="shopping-sort" value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}><option value="newest">Newest first</option><option value="name">Name</option><option value="price">Highest price</option></select><span aria-live="polite">Visible items total: ${categoryTotal.toFixed(2)}</span></div>
+            <div className="add-form"><label htmlFor="shopping-sort">Sort by</label><select id="shopping-sort" value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}><option value="newest">Newest first</option><option value="name">Name</option><option value="price">Highest price</option><option value="priority">Highest priority</option></select><span aria-live="polite">Visible items total: ${categoryTotal.toFixed(2)}</span></div>
             <div className="item-list">
               {visibleItems.length === 0 ? (
                 <div className="empty-state">
@@ -322,6 +340,9 @@ export default function App() {
                     </span>
 
                     <button type="button" className="icon-button" onClick={() => renameItem(item.id)} aria-label={`Rename ${item.name}`} title="Edit name">Edit</button>
+                    <button type="button" className="icon-button" onClick={() => duplicateItem(item.id)} aria-label={`Duplicate ${item.name}`}>Copy</button>
+                    {item.priority === "High" && <strong title="High priority">High</strong>}
+                    {item.store && <span title="Preferred store">{item.store}</span>}
                     {item.price !== undefined && <span title="Unit price">${(item.price * item.quantity).toFixed(2)}</span>}
                     {item.url?.startsWith("https://") && <a href={item.url} target="_blank" rel="noopener noreferrer" aria-label={`Open product link for ${item.name}`}>Product</a>}
                     {item.note && <span title={item.note} aria-label={`Note: ${item.note}`}>Note</span>}
