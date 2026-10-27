@@ -55,6 +55,32 @@ export default function App() {
     localStorage.setItem("shopping-items", JSON.stringify(items));
   }, [items]);
 
+  async function importItems(file: File) {
+    if (file.size > 2_000_000) {
+      window.alert("Backup is too large.");
+      return;
+    }
+    try {
+      const parsed: unknown = JSON.parse(await file.text());
+      if (!parsed || typeof parsed !== "object" || !("items" in parsed)) throw Error("Invalid backup");
+      const incoming = (parsed as { items: unknown }).items;
+      if (!Array.isArray(incoming) || incoming.length > 10000 ||
+        !incoming.every((item: unknown) => {
+          if (!item || typeof item !== "object") return false;
+          const entry = item as Record<string, unknown>;
+          return typeof entry.id === "string" && typeof entry.name === "string" &&
+            entry.name.length <= 500 && categories.includes(entry.category as Category) &&
+            typeof entry.completed === "boolean" && Number.isSafeInteger(entry.quantity) &&
+            (entry.quantity as number) >= 1 && (entry.quantity as number) <= 100000;
+        })) throw Error("Invalid shopping items");
+      if (window.confirm("Replace your current shopping lists with this backup?")) {
+        setItems(incoming as ShoppingItem[]);
+      }
+    } catch {
+      window.alert("This file is not a valid Shopping Companion backup.");
+    }
+  }
+
   function exportItems() {
     const blob = new Blob([JSON.stringify({ version: 1, items }, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -177,6 +203,14 @@ export default function App() {
               <button type="button" className="primary-button" onClick={exportItems}>
                 Export backup
               </button>
+              <label className="primary-button" style={{ cursor: "pointer" }}>
+                Import backup
+                <input type="file" accept=".json,application/json" style={{ display: "none" }} onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  if (file) void importItems(file);
+                  event.currentTarget.value = "";
+                }} />
+              </label>
             </div>
           </section>
           <section className="panel">
