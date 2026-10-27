@@ -55,6 +55,16 @@ export default function App() {
     localStorage.setItem("shopping-items", JSON.stringify(items));
   }, [items]);
 
+  function exportItems() {
+    const blob = new Blob([JSON.stringify({ version: 1, items }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "shopping-companion-backup.json";
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   function addItem() {
     const name = newItem.trim();
     if (!name) return;
@@ -158,6 +168,17 @@ export default function App() {
             </div>
           </section>
 
+          <section className="panel">
+            <div className="section-heading">
+              <div>
+                <h2>Your data</h2>
+                <p>Keep a personal backup of your shopping lists.</p>
+              </div>
+              <button type="button" className="primary-button" onClick={exportItems}>
+                Export backup
+              </button>
+            </div>
+          </section>
           <section className="panel">
             <div className="section-heading">
               <div>
