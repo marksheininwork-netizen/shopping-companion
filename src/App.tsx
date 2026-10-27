@@ -50,6 +50,7 @@ export default function App() {
   const [category, setCategory] = useState<Category>("Wishlist");
   const [newItem, setNewItem] = useState("");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "completed">("all");
 
   useEffect(() => {
     localStorage.setItem("shopping-items", JSON.stringify(items));
@@ -119,6 +120,14 @@ export default function App() {
     );
   }
 
+  function renameItem(id: string) {
+    const item = items.find((entry) => entry.id === id);
+    if (!item) return;
+    const name = window.prompt("Edit item name", item.name)?.trim();
+    if (!name || name.length > 500) return;
+    setItems((previous) => previous.map((entry) => entry.id === id ? { ...entry, name } : entry));
+  }
+
   function deleteItem(id: string) {
     setItems((previous) =>
       previous.filter((item) => item.id !== id)
@@ -129,7 +138,7 @@ export default function App() {
     setItems((previous) =>
       previous.map((item) =>
         item.id === id
-          ? { ...item, quantity: Math.max(1, item.quantity + amount) }
+          ? { ...item, quantity: Math.min(100000, Math.max(1, item.quantity + amount)) }
           : item
       )
     );
@@ -138,7 +147,8 @@ export default function App() {
   const visibleItems = items.filter(
     (item) =>
       item.category === category &&
-      item.name.toLowerCase().includes(search.toLowerCase())
+      item.name.toLowerCase().includes(search.trim().toLowerCase()) &&
+      (statusFilter === "all" || (statusFilter === "completed" ? item.completed : !item.completed))
   );
 
   const remaining = items.filter((item) => !item.completed).length;
@@ -250,6 +260,14 @@ export default function App() {
               />
             </div>
 
+            <div className="add-form" role="group" aria-label="Filter shopping items by status">
+              {(["all", "active", "completed"] as const).map((status) => (
+                <button key={status} type="button" className="primary-button" aria-pressed={statusFilter === status} onClick={() => setStatusFilter(status)} style={{ opacity: statusFilter === status ? 1 : 0.55 }}>
+                  {status === "all" ? "All" : status === "active" ? "To buy" : "Purchased"}
+                </button>
+              ))}
+            </div>
+
             <div className="item-list">
               {visibleItems.length === 0 ? (
                 <div className="empty-state">
@@ -280,6 +298,7 @@ export default function App() {
                       {item.name}
                     </span>
 
+                    <button type="button" className="icon-button" onClick={() => renameItem(item.id)} aria-label={`Rename ${item.name}`} title="Edit name">Edit</button>
                     <div className="quantity">
                       <button
                         onClick={() => changeQuantity(item.id, -1)}
