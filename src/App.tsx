@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from "react";
+import OfferComparison from "./OfferComparison";
 import {
   ShoppingCart,
   Heart,
@@ -197,6 +198,7 @@ export default function App() {
         </div>
       </header>
 
+      <OfferComparison />
       <div className="layout">
         <aside className="sidebar">
           <h3>My Shopping</h3>
