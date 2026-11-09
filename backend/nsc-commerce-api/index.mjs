@@ -30,6 +30,20 @@ export function canCheckoutProduct(product) {
   );
 }
 
+export function verifiedCheckoutTotals(session, order) {
+  const subtotal = Number(session?.amount_subtotal);
+  const total = Number(session?.amount_total);
+  if (
+    !order ||
+    !Number.isSafeInteger(subtotal) ||
+    subtotal !== order.amount_cents ||
+    !Number.isSafeInteger(total) ||
+    total < subtotal ||
+    String(session?.currency).toLowerCase() !== order.currency
+  ) return null;
+  return { subtotal, tax: total - subtotal, total };
+}
+
 export function customerIdentity(accessContext) {
   if (!accessContext || typeof accessContext.getIdentity !== "function") return null;
   return accessContext.getIdentity().then((identity) => {
@@ -164,10 +178,8 @@ async function stripeWebhook(request, env) {
   const paymentStatus = session.payment_status;
   const eventIsFailed = event.type === "checkout.session.async_payment_failed";
   const isPaid = paymentStatus === "paid" && event.type !== "checkout.session.async_payment_failed";
-  const subtotal = Number(session.amount_subtotal);
-  const total = Number(session.amount_total);
-  const taxAmount = total - subtotal;
-  if (isPaid && (!Number.isSafeInteger(subtotal) || subtotal !== order.amount_cents || !Number.isSafeInteger(total) || total < subtotal || !Number.isSafeInteger(taxAmount) || String(session.currency).toLowerCase() !== order.currency)) return new Response("Order verification failed", { status: 400 });
+  const totals = isPaid ? verifiedCheckoutTotals(session, order) : null;
+  if (isPaid && !totals) return new Response("Order verification failed", { status: 400 });
 
   await env.DB.prepare("INSERT OR IGNORE INTO stripe_webhook_events (event_id, event_type) VALUES (?, ?)").bind(event.id, event.type).run();
   if (eventIsFailed) {
@@ -178,7 +190,7 @@ async function stripeWebhook(request, env) {
   if (order.status === "paid") return json({ received: true, result: "duplicate" });
   if (order.status !== "pending") return new Response("Order state does not allow payment", { status: 409 });
   await env.DB.prepare("UPDATE orders SET status = 'paid', tax_amount_cents = ?, total_amount_cents = ?, paid_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND status = 'pending' AND stripe_checkout_session_id = ?")
-    .bind(taxAmount, total, order.id, session.id).run();
+    .bind(totals.tax, totals.total, order.id, session.id).run();
   return json({ received: true, result: "paid" });
 }
 
