@@ -197,8 +197,8 @@ export default function App() {
   ).sort((a, b) => sortBy === "name" ? a.name.localeCompare(b.name) : sortBy === "price" ? (b.price ?? 0) - (a.price ?? 0) : sortBy === "priority" ? (["Low","Normal","High"].indexOf(b.priority ?? "Normal") - ["Low","Normal","High"].indexOf(a.priority ?? "Normal")) : 0);
 
   const remaining = items.filter((item) => !item.completed).length;
-  const estimatedTotal = items.filter((item) => !item.completed).reduce((sum, item) => sum + (item.price ?? 0) * item.quantity, 0);
-  const categoryTotal = visibleItems.reduce((sum, item) => sum + (item.price ?? 0) * item.quantity, 0);
+  const estimatedTotal = items.filter((item) => !item.completed).reduce((sum, item) => sum + calculateOfferTotal(item.price ?? 0, item.quantity, item.shipping ?? 0, item.estimatedTax ?? 0), 0);
+  const categoryTotal = visibleItems.reduce((sum, item) => sum + calculateOfferTotal(item.price ?? 0, item.quantity, item.shipping ?? 0, item.estimatedTax ?? 0), 0);
 
   return (
     <div className="app">
