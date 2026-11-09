@@ -19,6 +19,14 @@ export function isVerifiedTestCheckoutEvent(event, order) {
   );
 }
 
+export function isStagingTestProduct(product, enabled, allowedIds) {
+  if (!product) return false;
+  if (product.status === "active") return true;
+  if (enabled !== "true" || product.status !== "draft" || typeof product.id !== "string") return false;
+  const allowlist = new Set(String(allowedIds || "").split(",").map((value) => value.trim()).filter(Boolean));
+  return allowlist.has(product.id);
+}
+
 export function canCheckoutProduct(product) {
   return Boolean(
     product &&
@@ -120,9 +128,9 @@ async function checkout(request, env, identity) {
   try { input = await readJson(request); } catch { return json({ error: "Invalid request." }, 400); }
   if (typeof input.product_id !== "string" || input.product_id.length > 80) return json({ error: "Choose an available product." }, 400);
 
-  const product = await env.DB.prepare("SELECT id, slug, title, price_cents, currency, is_download, stripe_price_id FROM products WHERE id = ? AND status = 'active' LIMIT 1")
+  const product = await env.DB.prepare("SELECT id, slug, title, status, price_cents, currency, is_download, stripe_price_id FROM products WHERE id = ? LIMIT 1")
     .bind(input.product_id).first();
-  if (!canCheckoutProduct(product)) return json({ error: "This product is not available for checkout." }, 404);
+  if (!isStagingTestProduct(product, env.STAGING_TEST_MODE, env.STAGING_TEST_PRODUCT_IDS) || !canCheckoutProduct(product)) return json({ error: "This product is not available for checkout." }, 404);
   const asset = await env.DB.prepare("SELECT product_id FROM product_assets WHERE product_id = ? LIMIT 1").bind(product.id).first();
   if (!asset) return json({ error: "This download is not configured." }, 404);
 
@@ -223,9 +231,9 @@ async function addSupportRequest(request, env, identity) {
 
 async function download(request, env, identity, orderId) {
   if (!/^[0-9a-f-]{36}$/i.test(orderId)) return json({ error: "Purchase not found." }, 404);
-  const row = await env.DB.prepare("SELECT o.id, o.status, o.customer_id, p.slug, a.file_name, a.content_type, a.content_base64 FROM orders o JOIN products p ON p.id = o.product_id JOIN product_assets a ON a.product_id = p.id WHERE o.id = ? AND o.customer_id = ? AND o.status = 'paid' AND p.status = 'active' AND p.is_download = 1 LIMIT 1")
+  const row = await env.DB.prepare("SELECT o.id, o.status, o.customer_id, p.id AS product_id, p.status AS product_status, p.slug, a.file_name, a.content_type, a.content_base64 FROM orders o JOIN products p ON p.id = o.product_id JOIN product_assets a ON a.product_id = p.id WHERE o.id = ? AND o.customer_id = ? AND o.status = 'paid' AND p.is_download = 1 LIMIT 1")
     .bind(orderId, identity.id).first();
-  if (!canDownloadOrder(row, identity)) return json({ error: "A paid purchase is required for this download." }, 403);
+  if (!canDownloadOrder(row, identity) || !isStagingTestProduct({ id: row?.product_id, status: row?.product_status }, env.STAGING_TEST_MODE, env.STAGING_TEST_PRODUCT_IDS)) return json({ error: "A paid purchase is required for this download." }, 403);
   let bytes;
   try { bytes = Uint8Array.from(atob(row.content_base64), (char) => char.charCodeAt(0)); } catch { return json({ error: "The secure download is unavailable." }, 503); }
   const filename = safeDownloadName(row.file_name);
