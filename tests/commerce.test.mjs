@@ -10,7 +10,8 @@ const ideas = [
 
 test("GiftFinder applies budget and interest filters to concepts", () => {
   assert.deepEqual(filterGiftIdeas(ideas, ["Plants"], 20).map((item) => item.id), ["a", "c"]);
-  assert.deepEqual(filterGiftIdeas(ideas, [], 0).map((item) => item.id), ["a", "b", "c"]);
+  assert.deepEqual(filterGiftIdeas(ideas, [], "").map((item) => item.id), ["a", "b", "c"]);
+  assert.deepEqual(filterGiftIdeas(ideas, [], 0), []);
 });
 
 test("PriceWatch accepts a dated manual observation and zero price", () => {
