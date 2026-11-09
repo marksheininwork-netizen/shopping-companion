@@ -18,6 +18,9 @@ type Product = {
 };
 
 type Observation = { id: string; name: string; url: string; price: number; observedAt: string; source: "manual" };
+type AccountProfile = { id: string; email: string };
+type AccountOrder = { id: string; product_id: string; status: string; amount_cents: number; currency: string; created_at: string; paid_at: string | null };
+type SupportRequest = { id: string; category: string; message: string; status: string; created_at: string };
 const interests = ["Plant lover", "Slow living", "Reading", "Home rituals", "Creative"];
 
 const products: Product[] = [
@@ -70,6 +73,13 @@ export default function CommerceApp() {
   const [watchError, setWatchError] = useState("");
   const [notice, setNotice] = useState("");
   const [contactSubmitted, setContactSubmitted] = useState(false);
+  const [contactSaving, setContactSaving] = useState(false);
+  const [contactStatus, setContactStatus] = useState("");
+  const [accountProfile, setAccountProfile] = useState<AccountProfile | null>(null);
+  const [accountOrders, setAccountOrders] = useState<AccountOrder[]>([]);
+  const [accountSupport, setAccountSupport] = useState<SupportRequest[]>([]);
+  const [accountLoading, setAccountLoading] = useState(false);
+  const [accountError, setAccountError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
 
   const visibleProducts = products.filter((product) => (category === "All concepts" || product.category === category) && (product.name.toLowerCase().includes(search.trim().toLowerCase()) || product.description.toLowerCase().includes(search.trim().toLowerCase())));
@@ -110,9 +120,66 @@ export default function CommerceApp() {
     }
   }
 
-  function submitContact(event: FormEvent<HTMLFormElement>) {
+  async function loadCustomerAccount() {
+    setAccountLoading(true);
+    setAccountError("");
+    try {
+      const [profileResponse, ordersResponse, supportResponse] = await Promise.all([
+        fetch("/api/v1/customer/me", { credentials: "same-origin" }),
+        fetch("/api/v1/customer/orders", { credentials: "same-origin" }),
+        fetch("/api/v1/customer/support", { credentials: "same-origin" })
+      ]);
+      if (![profileResponse, ordersResponse, supportResponse].every((response) => response.ok)) throw new Error("Sign in again to load your account.");
+      const [profile, orders, support] = await Promise.all([profileResponse.json(), ordersResponse.json(), supportResponse.json()]);
+      setAccountProfile(profile as AccountProfile);
+      setAccountOrders(Array.isArray(orders.orders) ? orders.orders as AccountOrder[] : []);
+      setAccountSupport(Array.isArray(support.requests) ? support.requests as SupportRequest[] : []);
+    } catch {
+      setAccountError("Your account data could not be loaded. Sign in again or try refreshing.");
+      setAccountProfile(null);
+    } finally {
+      setAccountLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("account") === "connected") {
+      void loadCustomerAccount();
+      window.history.replaceState(null, "", window.location.pathname + "#account");
+    }
+  }, []);
+
+  async function submitContact(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setContactSubmitted(true);
+    setContactStatus("");
+    if (!accountProfile) {
+      setContactSubmitted(true);
+      setContactStatus("Draft saved on this device. Sign in to submit a private support request.");
+      return;
+    }
+    setContactSaving(true);
+    try {
+      const response = await fetch("/api/v1/customer/support", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: contactCategory, message: contactDraft })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Your request could not be saved.");
+      setContactSubmitted(true);
+      setContactStatus("Support request saved to your account.");
+      const supportResponse = await fetch("/api/v1/customer/support", { credentials: "same-origin" });
+      if (supportResponse.ok) {
+        const support = await supportResponse.json();
+        setAccountSupport(Array.isArray(support.requests) ? support.requests as SupportRequest[] : []);
+      }
+    } catch (error) {
+      setContactStatus(error instanceof Error ? error.message : "Your request could not be saved.");
+    } finally {
+      setContactSaving(false);
+    }
   }
 
   return <div className="commerce-app">
@@ -162,12 +229,12 @@ export default function CommerceApp() {
 
       <section className="section about-section" id="about"><div className="about-art"><img src="/designs/small-rituals-printable.svg" alt="Original Small Rituals botanical artwork" /></div><div><p className="eyebrow">A THOUGHTFUL PLACE TO BEGIN</p><h2>Natural Studio Commerce</h2><p className="about-lede">A home for original design, useful discoveries, and small tools that make shopping feel a little more considered.</p><p>Natural Studio is the print-on-demand division. Digital Design Shop offers original download ideas. The companion tools help people plan, compare, and discover gifts at their own pace.</p><p>We're building each division around accurate details, clear choices, and designs made from scratch.</p><div className="about-values"><span><Leaf size={16} /> Original first</span><span><Sparkles size={16} /> Useful over noisy</span><span><Check size={16} /> Clear about what's ready</span></div></div></section>
 
-      <section className="contact-section" id="contact"><div><p className="eyebrow">SAY HELLO</p><h2>We'd love to hear what you're looking for.</h2><p>A customer support address and response workflow have not been configured. You can prepare a message below; it stays in this browser and is not sent.</p></div><form onSubmit={submitContact}><label>Support topic<select value={contactCategory} onChange={(event) => setContactCategory(event.target.value)}><option value="order">Order question</option><option value="digital-download">Digital download</option><option value="product-question">Product question</option><option value="accessibility">Accessibility</option><option value="other">Something else</option></select></label><label>Your message<textarea value={contactDraft} onChange={(event) => { setContactDraft(event.target.value); setContactSubmitted(false); }} maxLength={2000} rows={5} placeholder="What would you like to ask?" /></label><button className="secondary-button" type="submit" disabled={!contactDraft.trim()}>Save message draft</button>{contactSubmitted && <p role="status">Saved on this device. Sending is not available until customer support is configured.</p>}</form></section>
+      <section className="contact-section" id="contact"><div><p className="eyebrow">SAY HELLO</p><h2>We'd love to hear what you're looking for.</h2><p>Guests can save a message draft in this browser. Signed-in requests are stored in your private account; the customer response address and staff reply workflow still need setup.</p></div><form onSubmit={submitContact}><label>Support topic<select value={contactCategory} onChange={(event) => setContactCategory(event.target.value)}><option value="order">Order question</option><option value="digital-download">Digital download</option><option value="product-question">Product question</option><option value="accessibility">Accessibility</option><option value="other">Something else</option></select></label><label>Your message<textarea value={contactDraft} onChange={(event) => { setContactDraft(event.target.value); setContactSubmitted(false); }} maxLength={2000} rows={5} placeholder="What would you like to ask?" /></label><button className="secondary-button" type="submit" disabled={!contactDraft.trim() || contactSaving}>{contactSaving ? "Saving request…" : accountProfile ? "Send support request" : "Save message draft"}</button>{contactSubmitted && <p role="status">{contactStatus}</p>}{!contactSubmitted && contactStatus && <p role="status">{contactStatus}</p>}</form></section>
 
-      <section className="section account-section" id="account"><div className="section-heading"><div><p className="eyebrow">YOUR PRIVATE WORKSPACE</p><h2>Your space</h2><p>Local dashboard stored on this device. No account sign-in is configured.</p></div><span className="section-mark">04 / 04</span></div><div className="dashboard-grid"><article><Heart /><strong>{savedIdeas.length}</strong><span>Saved product ideas</span></article><article><Gift /><strong>{giftSaved.length}</strong><span>Gift ideas saved</span></article><article><ShoppingBag /><strong>{cart.length}</strong><span>Research cart concepts</span></article><article><CircleDollarSign /><strong>{observations.length}</strong><span>Manual price notes</span></article></div></section>
+      <section className="section account-section" id="account"><div className="section-heading"><div><p className="eyebrow">YOUR PRIVATE WORKSPACE</p><h2>Your space</h2><p>Guest lists and price notes stay in this browser. Your account adds cross-device order and support history.</p></div><span className="section-mark">04 / 04</span></div><div className="dashboard-grid"><article><Heart /><strong>{savedIdeas.length}</strong><span>Saved product ideas · this browser</span></article><article><Gift /><strong>{giftSaved.length}</strong><span>Gift ideas saved · this browser</span></article><article><ShoppingBag /><strong>{cart.length}</strong><span>Research cart concepts · this browser</span></article><article><CircleDollarSign /><strong>{observations.length}</strong><span>Manual price notes · this browser</span></article></div><div className="account-panel" aria-live="polite">{accountProfile ? <><p><strong>Signed in as {accountProfile.email}</strong></p><button className="secondary-button" onClick={() => void loadCustomerAccount()} disabled={accountLoading}>{accountLoading ? "Refreshing…" : "Refresh account"}</button><div className="account-history"><h3>Order history</h3>{accountOrders.length ? accountOrders.map((order) => <article key={order.id}><strong>{order.product_id}</strong><span>{order.status} · {new Intl.NumberFormat(undefined, { style: "currency", currency: order.currency.toUpperCase() }).format(order.amount_cents / 100)}</span>{order.status === "paid" && <a href={"/api/v1/customer/downloads/" + encodeURIComponent(order.id)}>Download purchase</a>}</article>) : <p>No orders are associated with this account yet.</p>}<h3>Support requests</h3>{accountSupport.length ? accountSupport.map((request) => <article key={request.id}><strong>{request.category}</strong><span>{request.status} · {new Date(request.created_at + "Z").toLocaleString()}</span><p>{request.message}</p></article>) : <p>No support requests yet.</p>}</div></> : <><p>{accountLoading ? "Loading your account…" : "Sign in with a verified email to view your account’s orders and support requests."}</p><a className="primary-button" href="/api/v1/customer/sign-in">Sign in with email <ArrowRight size={16} /></a></>}{accountError && <p className="form-error" role="alert">{accountError}</p>}</div></section>
 
       <section className="policy-section" id="policies"><div className="policy-heading"><div><p className="eyebrow">INFORMATION FOR CUSTOMERS</p><h2>Policies and practical details</h2></div><span className="draft-chip">Drafts · owner review needed</span></div><div className="policy-grid">
-        <article><h3>Privacy</h3><p>Draft: shopping lists, saved concepts, gift preferences, price notes, and contact drafts are stored locally in the current browser. No account or analytics backend is configured in this preview. Confirm hosting, logging, cookies, retention, contact, and any future payment or download processing before publishing a final policy.</p></article>
+        <article><h3>Privacy</h3><p>Draft: guest saved concepts, gift ideas, research cart, price notes, and unsent contact drafts are stored in the current browser. Signed-in account identity, order history, and support requests are stored in the Natural Studio Commerce Cloudflare D1 service, with sign-in handled by Cloudflare Access email PIN. Confirm retention, logs, session cookies, support contact, payment, and download processing before publishing a final policy.</p></article>
         <article><h3>Terms</h3><p>Draft: this preview contains concept artwork and draft recommendations; it does not create a purchase contract. Final seller identity, intellectual-property terms, acceptable use, tax treatment, and consumer terms require owner review before launch.</p></article>
         <article><h3>Shipping</h3><p>Draft: physical concepts are not available for purchase. Confirm products, print provider, production timing, destinations, shipping charges, tracking, duties, and order support before publishing shipping commitments.</p></article>
         <article><h3>Returns</h3><p>Draft: no return or refund promise is made here. Confirm seller obligations, product-specific exceptions, damaged-item workflow, cancellation rules, and refund processing before accepting orders.</p></article>
