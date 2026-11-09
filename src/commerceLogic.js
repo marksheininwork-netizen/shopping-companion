@@ -1,7 +1,8 @@
 export function filterGiftIdeas(products, interests, budget) {
   const limit = Number(budget);
   return products.filter((product) => {
-    const budgetMatch = !Number.isFinite(limit) || limit <= 0 || product.suggestedPrice <= limit;
+    const hasBudget = String(budget).trim() !== "";
+    const budgetMatch = !hasBudget || (Number.isFinite(limit) && limit >= 0 && product.suggestedPrice <= limit);
     const interestMatch = interests.length === 0 || interests.some((interest) => product.interests.includes(interest));
     return budgetMatch && interestMatch;
   });
