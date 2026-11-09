@@ -389,7 +389,7 @@ export default function App() {
                     {item.priority === "High" && <strong title="High priority">High</strong>}
                     {item.store && <span title="Preferred store">{item.store}</span>}
                     {item.price !== undefined && <span title="Unit price times quantity">${(item.price * item.quantity).toFixed(2)}</span>}
-                    {(item.shipping !== undefined || item.estimatedTax !== undefined) && <span title="Manual shipping and tax estimates">+ ${(item.shipping ?? 0) + (item.estimatedTax ?? 0) toFixed(2)}</span>}
+                    {(item.shipping !== undefined || item.estimatedTax !== undefined) && <span title="Manual shipping and tax estimates">+ ${((item.shipping ?? 0) + (item.estimatedTax ?? 0)).toFixed(2)}</span>}
                     {item.url?.startsWith("https://") && <a href={item.url} target="_blank" rel="noopener noreferrer" aria-label={`Open product link for ${item.name}`}>Product</a>}
                     {item.note && <span title={item.note} aria-label={`Note: ${item.note}`}>Note</span>}
                     <div className="quantity">
