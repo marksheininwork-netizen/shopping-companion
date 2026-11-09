@@ -1,8 +1,10 @@
 const CUSTOMER_PREFIX = "/api/v1/customer/";
 const SUPPORT_CATEGORIES = new Set(["order", "digital-download", "product-question", "accessibility", "other"]);
 
-export function checkoutIsEnabled(flag, secret) {
-  return flag === "true" && typeof secret === "string" && /^(?:sk|rk)_test_/.test(secret);
+export function checkoutIsEnabled(flag, secret, webhookSecret) {
+  return flag === "true" &&
+    typeof secret === "string" && /^(?:sk|rk)_test_/.test(secret) &&
+    typeof webhookSecret === "string" && /^whsec_[A-Za-z0-9]+$/.test(webhookSecret);
 }
 
 export function isVerifiedTestCheckoutEvent(event, order) {
@@ -98,7 +100,7 @@ async function listProducts(env) {
 }
 
 async function checkout(request, env, identity) {
-  if (!checkoutIsEnabled(env.CHECKOUT_ENABLED, env.STRIPE_SECRET_KEY)) return json({ error: "Checkout is disabled until review and owner approval." }, 503);
+  if (!checkoutIsEnabled(env.CHECKOUT_ENABLED, env.STRIPE_SECRET_KEY, env.STRIPE_WEBHOOK_SECRET)) return json({ error: "Checkout is disabled until review and owner approval." }, 503);
   if (!env.DB || !env.STRIPE_SECRET_KEY || !env.PUBLIC_SITE_ORIGIN) return json({ error: "Checkout is not configured." }, 503);
   let input;
   try { input = await readJson(request); } catch { return json({ error: "Invalid request." }, 400); }
