@@ -16,12 +16,14 @@ const html = await storefront.text();
 assert.match(html, /name="robots" content="noindex, nofollow, noarchive"/i, "commerce HTML should include explicit noindex metadata");
 
 const expectedAccessHost = "flat-art-ac9a.cloudflareaccess.com";
+const accessStatuses = [];
 for (const path of [
   "/api/v1/customer/me",
   "/api/v1/customer/downloads/00000000-0000-4000-8000-000000000000"
 ]) {
   const response = await request(path);
   assert.ok([302, 303].includes(response.status), `${path} should redirect unauthenticated requests to Cloudflare Access (received HTTP ${response.status})`);
+  accessStatuses.push(response.status);
   const location = response.headers.get("location");
   assert.ok(location, `${path} should have a login redirect`);
   const redirect = new URL(location);
@@ -29,4 +31,4 @@ for (const path of [
   assert.match(redirect.pathname, /\/cdn-cgi\/access\/login\//);
 }
 
-console.log("Staging HTTP smoke passed: storefront HTTP 200, noindex/security headers present, account and download routes redirect to Cloudflare Access. No login credentials or request contents were used.");
+console.log(`Staging HTTP smoke passed: storefront=${storefront.status}; account=${accessStatuses[0]} and unpaid-download=${accessStatuses[1]} redirect to Cloudflare Access; noindex/security headers present. No login credentials or request contents were used.`);
