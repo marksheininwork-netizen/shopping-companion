@@ -1,38 +1,35 @@
 # Natural Studio Commerce secure commerce backend
 
-This implementation is intentionally prepared for a dedicated Natural Studio Commerce Supabase Free project. It does not connect to any existing business project.
+Natural Studio Commerce staging uses a dedicated Cloudflare Pages project, Cloudflare Worker API, and isolated D1 database. It does not connect to or reuse another business's database. Current release state is staging-only; customer checkout is disabled.
 
-## Fail-closed release state
+## Fail-closed state and data ownership
 
-- Checkout returns 503 unless CHECKOUT_ENABLED is exactly true and STRIPE_SECRET_KEY begins with sk_test_.
-- A product must be active, digital, priced, and assigned a private storage object key before Checkout can create a session. All current product concepts remain drafts.
-- The Stripe webhook verifies Stripe-Signature over the raw request body, applies a five-minute timestamp tolerance, and uses an atomic event ledger. It marks an order paid only when session, order, amount, currency, and paid status match.
-- Download links require an authenticated customer who owns a paid order. The file must be an active digital product in the private nsc-digital-products bucket. Signed links expire after 60 seconds.
-- Public and authenticated users have no direct object-storage policy. Service-role secrets are only used in Edge Functions.
-- Orders and support requests are owner-scoped by RLS. Support submissions require a verified account and are limited to five per user per hour.
+- Customer API requests are gated by the staging Cloudflare Access application. The Pages Function separately validates `Cf-Access-Jwt-Assertion` against Cloudflare Access JWKS using RS256, issuer, audience, expiry, not-before, and email checks.
+- The verified Access subject is the account key; every order, support request, and download query is scoped to that identity. Invalid or missing assertions return 401 from the function.
+- The dedicated D1 database is `natural-studio-commerce-development` (`277ba940-6c62-4489-b29e-64dd7104b9d5`). Its customer, order, support, product, asset, and Stripe event tables belong only to Natural Studio Commerce.
+- Current customer authentication uses email PIN through Access. That gate is appropriate for staging/admin, but Access is not the intended consumer login experience. No seeded NSC test identity or PIN-free test path is configured.
 
-## Required provisioning
+## Hosted Checkout and fulfillment
 
-Create a separate Free Plan organization named Natural Studio Commerce Development, then a Free project in it. Do not move or reuse another business's project. Apply the migration before deploying functions.
-
-Configure Edge Function secrets only in the dedicated project:
-- STRIPE_SECRET_KEY: restricted test-mode key from the already selected Maria Sheinin test account; it must begin with sk_test_.
-- STRIPE_WEBHOOK_SECRET: signing secret for that project's Stripe test webhook endpoint.
-- SITE_URL: exact staging origin.
-- CHECKOUT_ENABLED: leave unset or false during staging verification; do not set true until the owner approves enabling the test checkout flow.
-
-Supabase supplies SUPABASE_URL, SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY to deployed Edge Functions. Never put the service-role key, Stripe keys, or webhook secret in Vite variables or GitHub files.
-
-The test-mode webhook endpoint is the stripe-webhook Edge Function. Subscribe only to checkout.session.completed, checkout.session.async_payment_succeeded, and checkout.session.async_payment_failed. Do not create live-mode endpoints.
-
-## Private digital files
-
-The checked-in preview artwork is not the paid package. Upload final product files directly to the private Supabase bucket after project provisioning; do not copy paid assets into public/ or a public GitHub repository. Set each product's download_object_key only after the object is verified in that private bucket. The product remains draft until the owner approves its copy, price, license, and publication.
+- Checkout is off: `CHECKOUT_ENABLED=false`. The API requires this to be explicitly enabled and accepts only a test-mode `sk_test_` key.
+- A product must be active, digital, priced, and backed by a private stored asset before checkout can create a session.
+- Stripe webhooks are verified against the raw request body and five-minute timestamp tolerance. Fulfillment checks paid status, session/order/product association, exact amount and currency, and ownership before marking an order paid. Event IDs are stored for idempotent handling.
+- Downloads require an authenticated owner and a paid order for an active digital product. No direct public asset URL is provided.
+- Product archive content is currently stored as base64 in isolated D1 for small staging files. This is not the long-term storage design. Use a private object store with short-lived, owner-authorized delivery before increasing package size or traffic; do not enable a paid storage service without approval.
+- Proposed Stripe test webhook destination: `https://nsc-commerce-api-staging.marksheininwork.workers.dev/api/v1/webhooks/stripe`. This endpoint has not received a live Stripe test event.
+- Required encrypted Worker secret names, once an isolated NSC test price is approved: `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. The first must begin `sk_test_`; the second is the test webhook signing secret. Keep `CHECKOUT_ENABLED=false` until owner approval. Never expose any secret in frontend code, source control, or logs.
 
 ## Support
 
-support-submit stores a verified customer's message in the dedicated support_requests queue and returns a request ID. It does not send email. Configure and test a support mailbox/notification path and publish the final support contact before customer launch.
+Authenticated support requests are validated, rate-limited, and stored in D1 by the authenticated customer. The API does not send email. A monitored support inbox, response-time promise, and final public support contact require owner setup and review. Signed-in support submission has not yet been verified against a real PIN-authenticated customer.
 
-## Tests
+## Public customer identity design
 
-Run npm test for catalog logic, signature validation, checkout fail-closed rules, and paid-order ownership checks. Run the E2E suite separately for the storefront. Tests that require a live Supabase project, RLS, two-user isolation, private object storage, or Stripe test secrets remain unverified until the dedicated project is provisioned.
+Keep Cloudflare Access on staging and operator-only/admin routes. For future public customers, select a customer OIDC provider and implement Authorization Code with PKCE. Validate provider issuer, signature, audience, state, nonce, expiry, and verified-email claim. Key accounts by issuer plus immutable subject, not email alone. Create random short-lived opaque sessions; store only a cryptographic hash in D1 and deliver the token as a Secure, HttpOnly, SameSite cookie. Rotate and revoke sessions, require CSRF protection for mutations, apply login and action rate limits, and enforce owner-scoped D1 access on every query. Decide provider, email delivery/recovery, retention, and legal consent before public launch.
+
+## Tests and current verification
+
+- Automated tests cover webhook signatures and replay tolerance, fail-closed checkout behavior, event idempotency, order ownership, paid-download entitlement, and D1 API behavior with test fixtures.
+- GitHub Actions build/type checks, commerce/security regression tests, desktop/mobile Playwright preview tests, and the staging HTTP smoke check passed at commit `fd1536ba7f19e2576a1baa31cc1c4e532f1548d6`.
+- Live staging smoke confirms the storefront returns 200 and that unauthenticated customer API requests redirect to Cloudflare Access. No live Access PIN was completed; live cross-user data isolation, support persistence, order access, and paid/unpaid download flows are not verified.
+- No Stripe secret or webhook secret is configured, no NSC Stripe price is mapped, and checkout remains disabled. No live Stripe webhook test was run.
