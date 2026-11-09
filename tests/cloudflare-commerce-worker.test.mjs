@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import commerceWorker, { checkoutIsEnabled, canCheckoutProduct, customerIdentity, canDownloadOrder, download, verifyStripeSignature, isVerifiedTestCheckoutEvent, addSupportRequest, getSupportRequests } from "../backend/nsc-commerce-api/index.mjs";
+import commerceWorker, { checkoutIsEnabled, canCheckoutProduct, customerIdentity, canDownloadOrder, download, verifyStripeSignature, isVerifiedTestCheckoutEvent, addSupportRequest, getSupportRequests, verifiedCheckoutTotals } from "../backend/nsc-commerce-api/index.mjs";
 
 test("test-only checkout requires a restricted test key and a configured signing secret", () => {
   assert.equal(checkoutIsEnabled(undefined, "sk_test_value", "whsec_test_fixture"), false);
@@ -36,6 +36,15 @@ test("Stripe fulfillment is bound to the test mode payment, order, and NSC produ
   assert.equal(isVerifiedTestCheckoutEvent({ ...event, data: { object: { ...event.data.object, mode: "subscription" } } }, order), false);
   assert.equal(isVerifiedTestCheckoutEvent({ ...event, data: { object: { ...event.data.object, metadata: { ...event.data.object.metadata, product_id: "northstar-product" } } } }, order), false);
   assert.equal(isVerifiedTestCheckoutEvent({ ...event, data: { object: { ...event.data.object, client_reference_id: "other-order" } } }, order), false);
+});
+
+test("paid Checkout totals verify the exclusive product subtotal and preserve computed tax", () => {
+  const order = { amount_cents: 800, currency: "usd" };
+  assert.deepEqual(verifiedCheckoutTotals({ amount_subtotal: 800, amount_total: 870, currency: "usd" }, order), { subtotal: 800, tax: 70, total: 870 });
+  assert.deepEqual(verifiedCheckoutTotals({ amount_subtotal: 800, amount_total: 800, currency: "usd" }, order), { subtotal: 800, tax: 0, total: 800 });
+  assert.equal(verifiedCheckoutTotals({ amount_subtotal: 600, amount_total: 670, currency: "usd" }, order), null);
+  assert.equal(verifiedCheckoutTotals({ amount_subtotal: 800, amount_total: 799, currency: "usd" }, order), null);
+  assert.equal(verifiedCheckoutTotals({ amount_subtotal: 800, amount_total: 870, currency: "cad" }, order), null);
 });
 
 test("Access identity requires a verified-looking email and uses its stable subject or verified email", async () => {
