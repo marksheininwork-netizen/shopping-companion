@@ -2,7 +2,19 @@ const CUSTOMER_PREFIX = "/api/v1/customer/";
 const SUPPORT_CATEGORIES = new Set(["order", "digital-download", "product-question", "accessibility", "other"]);
 
 export function checkoutIsEnabled(flag, secret) {
-  return flag === "true" && typeof secret === "string" && secret.startsWith("sk_test_");
+  return flag === "true" && typeof secret === "string" && /^(?:sk|rk)_test_/.test(secret);
+}
+
+export function isVerifiedTestCheckoutEvent(event, order) {
+  const session = event?.data?.object;
+  return Boolean(
+    event?.livemode === false &&
+    order &&
+    session?.mode === "payment" &&
+    session?.client_reference_id === order.id &&
+    session?.metadata?.order_id === order.id &&
+    session?.metadata?.product_id === order.product_id
+  );
 }
 
 export function customerIdentity(accessContext) {
@@ -131,9 +143,9 @@ async function stripeWebhook(request, env) {
   const session = event.data?.object;
   const orderId = session?.client_reference_id || session?.metadata?.order_id;
   if (!session || typeof session.id !== "string" || typeof orderId !== "string") return new Response("Invalid checkout session", { status: 400 });
-  const order = await env.DB.prepare("SELECT id, status, amount_cents, currency, stripe_checkout_session_id FROM orders WHERE id = ? LIMIT 1").bind(orderId).first();
+  const order = await env.DB.prepare("SELECT id, product_id, status, amount_cents, currency, stripe_checkout_session_id FROM orders WHERE id = ? LIMIT 1").bind(orderId).first();
   if (!order) return new Response("Order not ready; retry webhook", { status: 503 });
-  if (order.stripe_checkout_session_id !== session.id) return new Response("Order verification failed", { status: 400 });
+  if (!isVerifiedTestCheckoutEvent(event, order) || order.stripe_checkout_session_id !== session.id) return new Response("Order verification failed", { status: 400 });
 
   const paymentStatus = session.payment_status;
   const eventIsFailed = event.type === "checkout.session.async_payment_failed";
@@ -226,4 +238,4 @@ export default {
   }
 };
 
-export { addSupportRequest, download, getSupportRequests, listProducts, stripeWebhook };
+export { addSupportRequest, download, getSupportRequests, isVerifiedTestCheckoutEvent, listProducts, stripeWebhook };
