@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="900" viewBox="0 0 800 900" role="img" aria-labelledby="title desc">
+<title id="title">Printable botanical art concept</title><desc id="desc">A framed preview of the original Small Rituals printable design.</desc>
+<rect width="800" height="900" rx="32" fill="#e8e1d5"/><ellipse cx="414" cy="790" rx="252" ry="38" fill="#cfc5b7"/>
+<rect x="174" y="78" width="450" height="635" rx="14" fill="#fffdf8" stroke="#897f70" stroke-width="14"/>
+<rect x="204" y="108" width="390" height="575" fill="#f6f3ed"/>
+<g fill="none" stroke="#28574c" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M400 430 C396 370 398 311 396 230"/><path d="M397 370 C365 344 333 317 301 280"/><path d="M399 337 C437 308 465 278 490 239"/><path d="M396 302 C369 273 354 244 344 212"/><path d="M400 270 C430 245 447 218 457 185"/>
+<path d="M301 280 C314 256 338 252 353 265 C341 288 319 293 301 280Z"/><path d="M490 239 C470 221 465 198 480 183 C500 201 502 221 490 239Z"/><path d="M344 212 C320 200 314 177 325 159 C346 171 354 191 344 212Z"/><path d="M457 185 C443 164 449 142 467 132 C482 151 477 170 457 185Z"/>
+</g>
+<text x="400" y="510" text-anchor="middle" fill="#23332d" font-family="Georgia,serif" font-size="31">Small rituals,</text><text x="400" y="554" text-anchor="middle" fill="#23332d" font-family="Georgia,serif" font-size="31">room to grow.</text>
+</svg>
