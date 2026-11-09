@@ -31,6 +31,8 @@ type ShoppingItem = {
   note?: string;
   priority?: "Low" | "Normal" | "High";
   store?: string;
+  shipping?: number;
+  estimatedTax?: number;
 };
 
 const categories: Category[] = [
@@ -56,6 +58,13 @@ export default function App() {
   const [newItem, setNewItem] = useState("");
   const [search, setSearch] = useState("");
   const [newPrice, setNewPrice] = useState("");
+  const [newShipping, setNewShipping] = useState("");
+  const [newTax, setNewTax] = useState("");
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [budget, setBudget] = useState(() => {
+    const saved = Number(localStorage.getItem("shopping-budget"));
+    return Number.isFinite(saved) && saved >= 0 ? String(saved || "") : "";
+  });
   const [newUrl, setNewUrl] = useState("");
   const [newNote, setNewNote] = useState("");
   const [newStore, setNewStore] = useState("");
@@ -66,6 +75,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("shopping-items", JSON.stringify(items));
   }, [items]);
+
+  useEffect(() => {
+    if (budget.trim() && Number.isFinite(Number(budget)) && Number(budget) >= 0) {
+      localStorage.setItem("shopping-budget", budget);
+    } else {
+      localStorage.removeItem("shopping-budget");
+    }
+  }, [budget]);
 
   async function importItems(file: File) {
     if (file.size > 2_000_000) {
@@ -81,7 +98,7 @@ export default function App() {
           if (!item || typeof item !== "object") return false;
           const entry = item as Record<string, unknown>;
           return typeof entry.id === "string" && typeof entry.name === "string" &&
-            entry.name.length <= 500 && (entry.store === undefined || (typeof entry.store === "string" && entry.store.length <= 100)) && (entry.priority === undefined || ["Low","Normal","High"].includes(entry.priority as string)) && (entry.price === undefined || (typeof entry.price === "number" && Number.isFinite(entry.price) && entry.price >= 0)) && (entry.url === undefined || (typeof entry.url === "string" && entry.url.startsWith("https://"))) && (entry.note === undefined || (typeof entry.note === "string" && entry.note.length <= 2000)) && categories.includes(entry.category as Category) &&
+            entry.name.length <= 500 && (entry.store === undefined || (typeof entry.store === "string" && entry.store.length <= 100)) && (entry.priority === undefined || ["Low","Normal","High"].includes(entry.priority as string)) && (entry.price === undefined || (typeof entry.price === "number" && Number.isFinite(entry.price) && entry.price >= 0)) && (entry.shipping === undefined || (typeof entry.shipping === "number" && Number.isFinite(entry.shipping) && entry.shipping >= 0)) && (entry.estimatedTax === undefined || (typeof entry.estimatedTax === "number" && Number.isFinite(entry.estimatedTax) && entry.estimatedTax >= 0)) && (entry.url === undefined || (typeof entry.url === "string" && entry.url.startsWith("https://"))) && (entry.note === undefined || (typeof entry.note === "string" && entry.note.length <= 2000)) && categories.includes(entry.category as Category) &&
             typeof entry.completed === "boolean" && Number.isSafeInteger(entry.quantity) &&
             (entry.quantity as number) >= 1 && (entry.quantity as number) <= 100000;
         })) throw Error("Invalid shopping items");
@@ -115,6 +132,8 @@ export default function App() {
         completed: false,
         quantity: 1,
         ...(newPrice.trim() && Number.isFinite(Number(newPrice)) && Number(newPrice) >= 0 ? { price: Number(newPrice) } : {}),
+        ...(newShipping.trim() && Number.isFinite(Number(newShipping)) && Number(newShipping) >= 0 ? { shipping: Number(newShipping) } : {}),
+        ...(newTax.trim() && Number.isFinite(Number(newTax)) && Number(newTax) >= 0 ? { estimatedTax: Number(newTax) } : {}),
         ...(newUrl.trim().startsWith("https://") ? { url: newUrl.trim() } : {}),
         ...(newNote.trim() ? { note: newNote.trim() } : {}),
         ...(newStore.trim() ? { store: newStore.trim() } : {}),
@@ -125,6 +144,8 @@ export default function App() {
 
     setNewItem("");
     setNewPrice("");
+    setNewShipping("");
+    setNewTax("");
     setNewUrl("");
     setNewNote("");
     setNewStore("");
@@ -174,6 +195,12 @@ export default function App() {
     );
   }
 
+  function toggleCompare(id: string) {
+    setCompareIds((previous) => previous.includes(id) ? previous.filter((entry) => entry !== id) : [...previous, id]);
+  }
+
+  const comparedItems = items.filter((item) => compareIds.includes(item.id));
+  const comparisonTotal = (item: ShoppingItem) => (item.price ?? 0) * item.quantity + (item.shipping ?? 0) + (item.estimatedTax ?? 0);
   const visibleItems = items.filter(
     (item) =>
       item.category === category &&
@@ -238,6 +265,18 @@ export default function App() {
             </div>
           </section>
 
+          <section className="panel budget-panel">
+            <div className="section-heading">
+              <div>
+                <h2>Spending target</h2>
+                <p>Set a personal target for unpurchased items. Prices are estimates you entered.</p>
+              </div>
+              <label className="budget-control">Monthly or trip budget ($)
+                <input type="number" min="0" step="0.01" value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="Optional" aria-label="Shopping budget" />
+              </label>
+              <div className="budget-status" aria-live="polite">{budget.trim() ? `${Math.max(0, Number(budget) - estimatedTotal).toFixed(2)} left of ${Number(budget).toFixed(2)}` : "No budget set"}</div>
+            </div>
+          </section>
           <section className="panel">
             <div className="section-heading">
               <div>
@@ -285,6 +324,8 @@ export default function App() {
 
             <div className="add-form">
               <input type="number" min="0" step="0.01" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="Estimated unit price ($)" aria-label="Estimated unit price" />
+              <input type="number" min="0" step="0.01" value={newShipping} onChange={(e) => setNewShipping(e.target.value)} placeholder="Shipping estimate ($)" aria-label="Estimated shipping" />
+              <input type="number" min="0" step="0.01" value={newTax} onChange={(e) => setNewTax(e.target.value)} placeholder="Tax estimate ($)" aria-label="Estimated tax" />
               <input type="url" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://product-link" aria-label="Product link" />
               <input value={newNote} maxLength={2000} onChange={(e) => setNewNote(e.target.value)} placeholder="Optional note" aria-label="Shopping item note" />
               <input value={newStore} maxLength={100} onChange={(e) => setNewStore(e.target.value)} placeholder="Store" aria-label="Preferred store" />
@@ -319,6 +360,10 @@ export default function App() {
               ) : (
                 visibleItems.map((item) => (
                   <div className="shopping-item" key={item.id}>
+                    <label className="compare-select" title="Add this saved offer to comparison">
+                      <input type="checkbox" checked={compareIds.includes(item.id)} onChange={() => toggleCompare(item.id)} aria-label={`Compare ${item.name}`} />
+                      Compare
+                    </label>
                     <button
                       className="icon-button"
                       onClick={() => toggleItem(item.id)}
@@ -343,7 +388,8 @@ export default function App() {
                     <button type="button" className="icon-button" onClick={() => duplicateItem(item.id)} aria-label={`Duplicate ${item.name}`}>Copy</button>
                     {item.priority === "High" && <strong title="High priority">High</strong>}
                     {item.store && <span title="Preferred store">{item.store}</span>}
-                    {item.price !== undefined && <span title="Unit price">${(item.price * item.quantity).toFixed(2)}</span>}
+                    {item.price !== undefined && <span title="Unit price times quantity">${(item.price * item.quantity).toFixed(2)}</span>}
+                    {(item.shipping !== undefined || item.estimatedTax !== undefined) && <span title="Manual shipping and tax estimates">+ ${(item.shipping ?? 0) + (item.estimatedTax ?? 0) toFixed(2)}</span>}
                     {item.url?.startsWith("https://") && <a href={item.url} target="_blank" rel="noopener noreferrer" aria-label={`Open product link for ${item.name}`}>Product</a>}
                     {item.note && <span title={item.note} aria-label={`Note: ${item.note}`}>Note</span>}
                     <div className="quantity">
@@ -373,6 +419,24 @@ export default function App() {
                 ))
               )}
             </div>
+          </section>
+          <section className="panel comparison-panel" aria-labelledby="comparison-title">
+            <div className="section-heading">
+              <div>
+                <h2 id="comparison-title">Compare saved offers</h2>
+                <p>Choose items above. Totals use only your manual item, shipping, and tax estimates.</p>
+              </div>
+              <button type="button" className="primary-button" onClick={() => setCompareIds([])} disabled={comparedItems.length === 0}>Clear comparison</button>
+            </div>
+            {comparedItems.length === 0 ? <p className="empty-state">Select two or more saved items to compare their estimated totals.</p> : (
+              <div className="comparison-list">
+                {comparedItems.map((item) => <div className="comparison-row" key={item.id}>
+                  <strong>{item.name}</strong><span>{item.store || "Store not specified"}</span><span>{item.quantity} × ${((item.price ?? 0)).toFixed(2)} + ${((item.shipping ?? 0) + (item.estimatedTax ?? 0)).toFixed(2)} estimates</span><strong>Estimated total: ${comparisonTotal(item).toFixed(2)}</strong>
+                  {item.url?.startsWith("https://") && <a href={item.url} target="_blank" rel="noopener noreferrer">Open product page</a>}
+                </div>)}
+                <p aria-live="polite">Lowest entered estimate: ${Math.min(...comparedItems.map(comparisonTotal)).toFixed(2)}. Confirm current price, shipping, and tax with the retailer before buying.</p>
+              </div>
+            )}
           </section>
         </main>
       </div>
