@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
@@ -88,4 +89,42 @@ test("accessibility smoke checks landmarks, labels, image alternatives, and name
     unnamedLinks: 0,
     unnamedControls: 0,
   });
+});
+
+test("Shopping Companion budget, comparison, save, and backup work together", async ({ page }) => {
+  await page.goto("/index.html");
+  await expect(page.getByRole("heading", { name: "Make shopping simple." })).toBeVisible();
+  await page.getByLabel("Shopping budget").fill("100");
+  await page.getByLabel("New shopping item").fill("Rain jacket");
+  await page.getByLabel("Estimated unit price").fill("35");
+  await page.getByLabel("Estimated shipping").fill("5");
+  await page.getByLabel("Estimated tax").fill("2.80");
+  await page.getByRole("button", { name: "Add Item" }).click();
+
+  await page.getByLabel("Compare Rain jacket").check();
+  await expect(page.getByText("Estimated total: $42.80")).toBeVisible();
+  await expect(page.locator(".budget-status")).toHaveText("$57.20 left of $100.00");
+  await page.reload();
+  await expect(page.getByText("Rain jacket")).toBeVisible();
+  await expect(page.getByLabel("Shopping budget")).toHaveValue("100");
+  await expect(page.locator(".budget-status")).toHaveText("$57.20 left of $100.00");
+
+  const downloadEvent = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export backup" }).click();
+  const download = await downloadEvent;
+  expect(download.suggestedFilename()).toBe("shopping-companion-backup.json");
+  const backup = JSON.parse(await readFile(await download.path(), "utf8"));
+  expect(backup.items).toEqual(expect.arrayContaining([
+    expect.objectContaining({ name: "Rain jacket", price: 35, shipping: 5, estimatedTax: 2.8 })
+  ]));
+
+  await page.getByRole("button", { name: "Delete Rain jacket" }).click();
+  await expect(page.getByText("Rain jacket")).toHaveCount(0);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "shopping-companion-backup.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(backup)),
+  });
+  await expect(page.getByText("Rain jacket")).toBeVisible();
 });
