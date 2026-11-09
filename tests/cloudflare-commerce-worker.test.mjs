@@ -93,7 +93,7 @@ test("support requests persist to the authenticated customer and remain isolated
         }
         if (sql.startsWith("SELECT id, category, message, status, created_at FROM support_requests WHERE customer_id = ?")) {
           const [customerId] = values;
-          return { all: async () => ({ results: requests.filter((entry) => entry.customer_id === customerId) }) };
+          return { all: async () => ({ results: requests.filter((entry) => entry.customer_id === customerId).map(({ id, category, message, status, created_at }) => ({ id, category, message, status, created_at })) }) };
         }
         throw new Error("Unexpected D1 query: " + sql);
       } };
