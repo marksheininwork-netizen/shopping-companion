@@ -1,11 +1,31 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import commerceWorker, { checkoutIsEnabled, customerIdentity, canDownloadOrder, download, verifyStripeSignature, addSupportRequest, getSupportRequests } from "../backend/nsc-commerce-api/index.mjs";
+import commerceWorker, { checkoutIsEnabled, customerIdentity, canDownloadOrder, download, verifyStripeSignature, isVerifiedTestCheckoutEvent, addSupportRequest, getSupportRequests } from "../backend/nsc-commerce-api/index.mjs";
 
 test("test-only checkout stays fail-closed unless explicitly enabled", () => {
   assert.equal(checkoutIsEnabled(undefined, "sk_test_value"), false);
   assert.equal(checkoutIsEnabled("true", "sk_live_value"), false);
   assert.equal(checkoutIsEnabled("true", "sk_test_value"), true);
+  assert.equal(checkoutIsEnabled("true", "rk_test_restricted"), true);
+  assert.equal(checkoutIsEnabled("true", "rk_live_restricted"), false);
+});
+
+test("Stripe fulfillment is bound to the test mode payment, order, and NSC product", () => {
+  const order = { id: "order-1", product_id: "nsc-small-rituals", amount_cents: 500, currency: "usd" };
+  const event = {
+    livemode: false,
+    data: { object: {
+      mode: "payment",
+      client_reference_id: "order-1",
+      metadata: { order_id: "order-1", product_id: "nsc-small-rituals" }
+    } }
+  };
+  assert.equal(isVerifiedTestCheckoutEvent(event, order), true);
+  assert.equal(isVerifiedTestCheckoutEvent({ ...event, livemode: true }, order), false);
+  assert.equal(isVerifiedTestCheckoutEvent({ ...event, livemode: undefined }, order), false);
+  assert.equal(isVerifiedTestCheckoutEvent({ ...event, data: { object: { ...event.data.object, mode: "subscription" } } }, order), false);
+  assert.equal(isVerifiedTestCheckoutEvent({ ...event, data: { object: { ...event.data.object, metadata: { ...event.data.object.metadata, product_id: "northstar-product" } } } }, order), false);
+  assert.equal(isVerifiedTestCheckoutEvent({ ...event, data: { object: { ...event.data.object, client_reference_id: "other-order" } } }, order), false);
 });
 
 test("Access identity requires a verified-looking email and uses its stable subject or verified email", async () => {
