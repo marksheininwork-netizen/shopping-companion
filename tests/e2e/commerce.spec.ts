@@ -52,3 +52,40 @@ test("mobile layout fits the viewport without horizontal page overflow", async (
   expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport);
   await expect(page.getByRole("heading", { name: "A little more meaning in the everyday." })).toBeVisible();
 });
+
+test("accessibility smoke checks landmarks, labels, image alternatives, and names", async ({ page, isMobile }) => {
+  test.skip(isMobile, "Accessibility smoke check runs once on desktop.");
+  const audit = await page.evaluate(() => {
+    const named = (element: Element) => {
+      const aria = element.getAttribute("aria-label");
+      const labelledBy = element.getAttribute("aria-labelledby");
+      const text = element.textContent?.trim();
+      const title = element.getAttribute("title");
+      return Boolean(aria?.trim() || labelledBy?.trim() || text || title?.trim());
+    };
+    const controls = Array.from(document.querySelectorAll("input:not([type=hidden]), select, textarea"));
+    const unnamedControls = controls.filter((element) => {
+      if (element.getAttribute("aria-label") || element.getAttribute("aria-labelledby")) return false;
+      const id = element.id;
+      return !Array.from(document.querySelectorAll("label")).some((label) =>
+        (id && label.htmlFor === id) || label.contains(element)
+      );
+    });
+    return {
+      h1Count: document.querySelectorAll("h1").length,
+      mainCount: document.querySelectorAll("main").length,
+      missingImageAlternatives: Array.from(document.images).filter((image) => !image.hasAttribute("alt")).length,
+      unnamedButtons: Array.from(document.querySelectorAll("button")).filter((button) => !named(button)).length,
+      unnamedLinks: Array.from(document.querySelectorAll("a")).filter((link) => !named(link)).length,
+      unnamedControls: unnamedControls.length,
+    };
+  });
+  expect(audit).toEqual({
+    h1Count: 1,
+    mainCount: 1,
+    missingImageAlternatives: 0,
+    unnamedButtons: 0,
+    unnamedLinks: 0,
+    unnamedControls: 0,
+  });
+});
