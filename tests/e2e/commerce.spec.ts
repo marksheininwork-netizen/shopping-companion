@@ -34,7 +34,7 @@ test("default manual price observation date saves and persists", async ({ page }
 
 test("unconfigured account and download access are clearly unavailable", async ({ page }) => {
   await expect(page.getByText("No account sign-in is configured.")).toBeVisible();
-  await expect(page.getByText(/customer-ready package, PDF exports, license, and download delivery still need preparation/i)).toBeVisible();
+  await expect(page.getByText(/Formatted review packages are prepared locally\. Final license approval and private download delivery are not enabled\./i)).toBeVisible();
   await expect(page.getByRole("link", { name: /download/i })).toHaveCount(0);
 });
 
