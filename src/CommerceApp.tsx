@@ -64,7 +64,7 @@ export default function CommerceApp() {
   const [watchName, setWatchName] = useState("");
   const [watchUrl, setWatchUrl] = useState("");
   const [watchPrice, setWatchPrice] = useState("");
-  const [watchDate, setWatchDate] = useState(new Date().toISOString().slice(0, 16));
+  const [watchDate, setWatchDate] = useState(() => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16));
   const [watchError, setWatchError] = useState("");
   const [notice, setNotice] = useState("");
   const [contactSubmitted, setContactSubmitted] = useState(false);
