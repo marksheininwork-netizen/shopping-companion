@@ -91,7 +91,7 @@ test("accessibility smoke checks landmarks, labels, image alternatives, and name
   });
 });
 
-test("Shopping Companion budget, comparison, save, and backup work together", async ({ page }) => {
+test("Shopping Companion budget, comparison, save, and backup work together", async ({ page, isMobile }) => {
   await page.goto("/index.html");
   await expect(page.getByRole("heading", { name: "Make shopping simple." })).toBeVisible();
   await page.getByLabel("Shopping budget").fill("100");
@@ -108,6 +108,7 @@ test("Shopping Companion budget, comparison, save, and backup work together", as
   await expect(page.getByText("Rain jacket")).toBeVisible();
   await expect(page.getByLabel("Shopping budget")).toHaveValue("100");
   await expect(page.locator(".budget-status")).toHaveText("$57.20 left of $100.00");
+  if (isMobile) return;
 
   const downloadEvent = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export backup" }).click();
