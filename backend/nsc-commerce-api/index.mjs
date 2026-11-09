@@ -159,6 +159,12 @@ async function getOrders(env, identity) {
   return results;
 }
 
+async function getSupportRequests(env, identity) {
+  const { results = [] } = await env.DB.prepare("SELECT id, category, message, status, created_at FROM support_requests WHERE customer_id = ? ORDER BY created_at DESC LIMIT 100")
+    .bind(identity.id).all();
+  return results;
+}
+
 async function addSupportRequest(request, env, identity) {
   let input;
   try { input = await readJson(request); } catch { return json({ error: "Invalid request." }, 400); }
@@ -205,6 +211,7 @@ export default {
       }
       if (request.method === "GET" && path === CUSTOMER_PREFIX + "orders") return json({ orders: await getOrders(env, identity) }, 200, cors);
       if (request.method === "POST" && path === CUSTOMER_PREFIX + "checkout") return checkout(request, env, identity);
+      if (request.method === "GET" && path === CUSTOMER_PREFIX + "support") return json({ requests: await getSupportRequests(env, identity) }, 200, cors);
       if (request.method === "POST" && path === CUSTOMER_PREFIX + "support") return addSupportRequest(request, env, identity);
       const downloadMatch = path.match(/^\/api\/v1\/customer\/downloads\/([0-9a-f-]{36})$/i);
       if (request.method === "GET" && downloadMatch) return download(request, env, identity, downloadMatch[1]);
@@ -215,4 +222,4 @@ export default {
   }
 };
 
-export { addSupportRequest, download, listProducts, stripeWebhook };
+export { addSupportRequest, download, getSupportRequests, listProducts, stripeWebhook };
