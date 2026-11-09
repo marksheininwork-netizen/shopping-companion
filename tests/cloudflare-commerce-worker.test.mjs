@@ -8,9 +8,9 @@ test("test-only checkout stays fail-closed unless explicitly enabled", () => {
   assert.equal(checkoutIsEnabled("true", "sk_test_value"), true);
 });
 
-test("Access identity requires a verified-looking email and stable subject", async () => {
+test("Access identity requires a verified-looking email and uses its stable subject or verified email", async () => {
   assert.equal(await customerIdentity(undefined), null);
-  assert.equal(await customerIdentity({ getIdentity: async () => ({ id: "customer-1", email: "buyer@example.com" }) }), null);
+  assert.deepEqual(await customerIdentity({ getIdentity: async () => ({ email: "Buyer@Example.com" }) }), { id: "buyer@example.com", email: "buyer@example.com" });
   assert.deepEqual(await customerIdentity({ getIdentity: async () => ({ id: "customer-1", email: "Buyer@Example.com" }) }), { id: "customer-1", email: "buyer@example.com" });
 });
 
