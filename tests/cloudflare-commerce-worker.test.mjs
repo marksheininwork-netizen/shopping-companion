@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import commerceWorker, { checkoutIsEnabled, customerIdentity, canDownloadOrder, download, verifyStripeSignature } from "../backend/nsc-commerce-api/index.mjs";
+import commerceWorker, { checkoutIsEnabled, customerIdentity, canDownloadOrder, download, verifyStripeSignature, addSupportRequest, getSupportRequests } from "../backend/nsc-commerce-api/index.mjs";
 
 test("test-only checkout stays fail-closed unless explicitly enabled", () => {
   assert.equal(checkoutIsEnabled(undefined, "sk_test_value"), false);
@@ -69,4 +69,80 @@ test("Stripe webhook signature accepts fresh signed bodies and rejects tampering
   assert.equal(await verifyStripeSignature(body, "t=" + timestamp + ",v1=" + signature, secret, timestamp), true);
   assert.equal(await verifyStripeSignature(body + "!", "t=" + timestamp + ",v1=" + signature, secret, timestamp), false);
   assert.equal(await verifyStripeSignature(body, "t=" + timestamp + ",v1=" + signature, secret, timestamp + 301), false);
+});
+
+
+test("support requests persist to the authenticated customer and remain isolated", async () => {
+  const requests = [];
+  const env = { DB: {
+    prepare(sql) {
+      return { bind(...values) {
+        if (sql.startsWith("INSERT INTO customers")) {
+          return { run: async () => ({ success: true }) };
+        }
+        if (sql.startsWith("SELECT COUNT(*) AS count FROM support_requests")) {
+          const [customerId] = values;
+          return { first: async () => ({ count: requests.filter((entry) => entry.customer_id === customerId).length }) };
+        }
+        if (sql.startsWith("INSERT INTO support_requests")) {
+          return { run: async () => {
+            const [id, customer_id, category, message] = values;
+            requests.push({ id, customer_id, category, message, status: "open", created_at: "2026-11-09 12:00:00" });
+            return { success: true };
+          } };
+        }
+        if (sql.startsWith("SELECT id, category, message, status, created_at FROM support_requests WHERE customer_id = ?")) {
+          const [customerId] = values;
+          return { all: async () => ({ results: requests.filter((entry) => entry.customer_id === customerId) }) };
+        }
+        throw new Error("Unexpected D1 query: " + sql);
+      } };
+    }
+  } };
+  const owner = { id: "customer-1", email: "one@example.test" };
+  const other = { id: "customer-2", email: "two@example.test" };
+
+  const created = await addSupportRequest(
+    new Request("https://api.example/api/v1/customer/support", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category: "digital-download", message: "  I need help with my file.  " }),
+    }),
+    env,
+    owner,
+  );
+  assert.equal(created.status, 201);
+  const createdBody = await created.json();
+  assert.equal(createdBody.status, "open");
+
+  for (let index = 0; index < 4; index += 1) {
+    const response = await addSupportRequest(
+      new Request("https://api.example/api/v1/customer/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: "other", message: `Follow-up ${index + 1}` }),
+      }),
+      env,
+      owner,
+    );
+    assert.equal(response.status, 201);
+  }
+
+  const rateLimited = await addSupportRequest(
+    new Request("https://api.example/api/v1/customer/support", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category: "other", message: "One extra request" }),
+    }),
+    env,
+    owner,
+  );
+  assert.equal(rateLimited.status, 429);
+
+  const ownerRequests = await getSupportRequests(env, owner);
+  assert.equal(ownerRequests.length, 5);
+  assert.equal(ownerRequests[0].category, "digital-download");
+  assert.equal(ownerRequests[0].message, "I need help with my file.");
+  assert.ok(ownerRequests.every((entry) => entry.customer_id === undefined));
+  assert.deepEqual(await getSupportRequests(env, other), []);
 });
