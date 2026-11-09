@@ -1,6 +1,7 @@
 import test from "node:test";
+import { createHmac } from "node:crypto";
 import assert from "node:assert/strict";
-import commerceWorker, { checkoutIsEnabled, canCheckoutProduct, customerIdentity, canDownloadOrder, download, verifyStripeSignature, isVerifiedTestCheckoutEvent, isStagingTestProduct, addSupportRequest, getSupportRequests, verifiedCheckoutTotals, verifiedTestRefund } from "../backend/nsc-commerce-api/index.mjs";
+import commerceWorker, { checkoutIsEnabled, canCheckoutProduct, customerIdentity, canDownloadOrder, download, verifyStripeSignature, isVerifiedTestCheckoutEvent, isStagingTestProduct, addSupportRequest, getSupportRequests, verifiedCheckoutTotals, verifiedTestRefund, stripeWebhook } from "../backend/nsc-commerce-api/index.mjs";
 
 test("test-only checkout requires a restricted test key and a configured signing secret", () => {
   assert.equal(checkoutIsEnabled(undefined, "sk_test_value", "whsec_test_fixture"), false);
@@ -68,6 +69,67 @@ test("Stripe refunds must match the paid Natural Studio test order and full refu
   assert.equal(verifiedTestRefund(makeEvent({ payment_intent: "pi_other" }), order), null);
   assert.equal(verifiedTestRefund({ ...makeEvent(), livemode: true }, order), null);
   assert.equal(verifiedTestRefund(makeEvent({ amount: 800 }), order), null);
+});
+
+test("signed test-mode refund webhook is idempotent and revokes access only after a full refund", async () => {
+  const secret = "whsec_nsc_test_fixture";
+  const order = {
+    id: "order-refund-1", product_id: "nsc-small-rituals-room-grow", status: "paid",
+    currency: "usd", total_amount_cents: 870, refunded_amount_cents: 0,
+    stripe_payment_intent_id: "pi_nsc_test_1"
+  };
+  const env = {
+    STRIPE_WEBHOOK_SECRET: secret,
+    DB: { prepare(sql) {
+      if (sql.startsWith("SELECT id, status, currency, total_amount_cents")) {
+        return { bind(paymentIntent) { return { first: async () => paymentIntent === order.stripe_payment_intent_id ? { ...order } : null }; } };
+      }
+      if (sql.startsWith("INSERT OR IGNORE INTO stripe_webhook_events")) {
+        return { bind() { return { run: async () => ({ success: true }) }; } };
+      }
+      if (sql.startsWith("UPDATE orders SET status = CASE")) {
+        return { bind(full, amount, id, paymentIntent) { return { run: async () => {
+          if (id === order.id && paymentIntent === order.stripe_payment_intent_id) {
+            order.refunded_amount_cents = Math.max(order.refunded_amount_cents, amount);
+            if (full) order.status = "refunded";
+          }
+          return { success: true };
+        } }; } };
+      }
+      throw new Error("Unexpected query: " + sql);
+    } }
+  };
+  const send = async (event) => {
+    const raw = JSON.stringify(event);
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = createHmac("sha256", secret).update(timestamp + "." + raw).digest("hex");
+    return stripeWebhook(new Request("https://api.example/api/v1/webhooks/stripe", {
+      method: "POST",
+      headers: { "Stripe-Signature": "t=" + timestamp + ",v1=" + signature },
+      body: raw
+    }), env);
+  };
+  const partial = { id: "evt_refund_partial", type: "charge.refunded", livemode: false, data: { object: {
+    object: "charge", payment_intent: "pi_nsc_test_1", currency: "usd", amount: 870, amount_refunded: 400, refunded: false
+  } } };
+  const partialResponse = await send(partial);
+  assert.equal(partialResponse.status, 200);
+  assert.equal((await partialResponse.json()).result, "partially_refunded");
+  assert.equal(order.status, "paid");
+  assert.equal(order.refunded_amount_cents, 400);
+
+  const full = { ...partial, id: "evt_refund_full", data: { object: { ...partial.data.object, amount_refunded: 870, refunded: true } } };
+  const firstFullResponse = await send(full);
+  assert.equal(firstFullResponse.status, 200);
+  assert.equal((await firstFullResponse.json()).result, "refunded");
+  assert.equal(order.status, "refunded");
+  assert.equal(canDownloadOrder(order, { id: "customer-1" }), false);
+
+  const replay = await send(full);
+  assert.equal(replay.status, 200);
+  assert.equal((await replay.json()).result, "refunded");
+  assert.equal(order.status, "refunded");
+  assert.equal(order.refunded_amount_cents, 870);
 });
 
 test("Access identity requires a verified-looking email and uses its stable subject or verified email", async () => {
