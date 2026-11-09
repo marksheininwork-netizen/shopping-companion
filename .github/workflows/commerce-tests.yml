@@ -11,6 +11,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
       - name: Test GiftFinder and PriceWatch logic
         run: node --test tests/commerce.test.mjs
       - name: Install Chromium for browser tests
