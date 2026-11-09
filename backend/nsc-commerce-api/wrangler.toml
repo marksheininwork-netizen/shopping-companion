@@ -1,0 +1,19 @@
+name = "nsc-commerce-api-staging"
+main = "index.mjs"
+compatibility_date = "2026-11-08"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "natural-studio-commerce-development"
+database_id = "277ba940-6c62-4489-b29e-64dd7104b9d5"
+migrations_dir = "migrations"
+
+[vars]
+CHECKOUT_ENABLED = "false"
+PUBLIC_SITE_ORIGIN = "https://natural-studio-commerce-staging.pages.dev"
+ALLOWED_ORIGINS = "https://natural-studio-commerce-staging.pages.dev,https://4dd19e74.natural-studio-commerce-staging.pages.dev"
+
+# Set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET as encrypted Cloudflare Worker secrets.
+# Checkout must remain disabled unless the owner explicitly approves test verification.
+# Configure a path-scoped Cloudflare Access application for /api/v1/customer/* before using accounts.
