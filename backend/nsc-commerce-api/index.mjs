@@ -4,7 +4,7 @@ const SUPPORT_CATEGORIES = new Set(["order", "digital-download", "product-questi
 export function checkoutIsEnabled(flag, secret, webhookSecret) {
   return flag === "true" &&
     typeof secret === "string" && /^(?:sk|rk)_test_/.test(secret) &&
-    typeof webhookSecret === "string" && /^whsec_[A-Za-z0-9]+$/.test(webhookSecret);
+    typeof webhookSecret === "string" && webhookSecret.startsWith("whsec_") && webhookSecret.length > 12;
 }
 
 export function isVerifiedTestCheckoutEvent(event, order) {
