@@ -29,7 +29,7 @@ Keep Cloudflare Access on staging and operator-only/admin routes. For future pub
 
 ## Tests and current verification
 
-- Automated tests cover webhook signatures and replay tolerance, fail-closed checkout behavior, event idempotency, order ownership, paid-download entitlement, and D1 API behavior with test fixtures.
-- GitHub Actions build/type checks, commerce/security regression tests, desktop/mobile Playwright preview tests, and the staging HTTP smoke check passed on the reviewed code/test commit. Latest completed verification is against code/test commit `cf50db56dd8208a49275981260cfceb970f55745`: Build and validate #75 (`42677255710`) and Commerce tools tests #51 (`42677255670`) both succeeded, including the Access JWT verifier tests.
+- Automated tests cover webhook signatures and replay tolerance, fail-closed checkout behavior, event idempotency, order ownership, paid-download entitlement, D1 API behavior, and support request persistence, owner-scoped listing, and rate limiting with test fixtures.
+- GitHub Actions build/type checks, commerce/security regression tests, desktop/mobile Playwright preview tests, and the staging HTTP smoke check passed on the reviewed code/test commit. Latest completed verification is against code/test commit `8b1fd290de36a04c1521e95bdedf3611347b11a9`: Build and validate #78 (`42678215994`) and Commerce tools tests #54 (`42678216514`) both succeeded, including Access JWT verifier and account-scoped support persistence/rate-limit tests.
 - Live staging smoke confirms the storefront returns 200 and that unauthenticated customer API requests redirect to Cloudflare Access. No live Access PIN was completed; live cross-user data isolation, support persistence, order access, and paid/unpaid download flows are not verified.
 - No Stripe secret or webhook secret is configured, no NSC Stripe price is mapped, and checkout remains disabled. No live Stripe webhook test was run.
