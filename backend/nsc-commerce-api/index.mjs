@@ -147,7 +147,7 @@ async function checkout(request, env, identity) {
 
   const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
     method: "POST",
-    headers: { Authorization: "Bearer " + env.STRIPE_SECRET_KEY, "Content-Type": "application/x-www-form-urlencoded", "Idempotency-Key": "nsc-checkout-" + orderId },
+    headers: { Authorization: "Bearer " + env.STRIPE_SECRET_KEY, "Content-Type": "application/x-www-form-urlencoded", "Stripe-Version": "2026-09-30.endive", "Idempotency-Key": "nsc-checkout-" + orderId },
     body: form.toString()
   });
   const session = await stripeResponse.json();
