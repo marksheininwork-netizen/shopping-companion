@@ -38,6 +38,14 @@ test("unconfigured account and download access are clearly unavailable", async (
   await expect(page.getByRole("link", { name: /download/i })).toHaveCount(0);
 });
 
+test("support message drafts are saved locally and survive reload", async ({ page }) => {
+  await page.getByLabel("Your message").fill("Question about a draft product");
+  await page.getByRole("button", { name: "Save message draft" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Saved on this device." })).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Your message")).toHaveValue("Question about a draft product");
+});
+
 test("checkout stays disabled for draft-only concepts", async ({ page }) => {
   await page.getByRole("button", { name: /Open research cart/ }).click();
   await expect(page.getByRole("button", { name: /Checkout unavailable/ })).toBeDisabled();

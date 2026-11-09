@@ -129,6 +129,10 @@ as $$
 declare
   already_processed boolean;
   affected integer;
+  expected_amount integer;
+  expected_currency text;
+  expected_session text;
+  expected_status text;
 begin
   insert into public.stripe_webhook_events (event_id, event_type)
   values (p_event_id, p_event_type)
@@ -165,23 +169,37 @@ begin
     return 'unpaid';
   end if;
 
-  update public.orders
-    set status = 'paid', paid_at = coalesce(paid_at, now()), updated_at = now()
+  select amount_cents, currency, stripe_checkout_session_id, status
+    into expected_amount, expected_currency, expected_session, expected_status
+    from public.orders
     where id = p_order_id
-      and stripe_checkout_session_id = p_session_id
-      and amount_cents = p_amount_cents
-      and currency = lower(p_currency)
-      and status = 'pending';
-  get diagnostics affected = row_count;
+    for update;
 
-  if affected = 0 then
-    if exists (select 1 from public.orders where id = p_order_id and status = 'paid') then
-      update public.stripe_webhook_events set processed = true, processed_at = now() where event_id = p_event_id;
-      return 'already-paid';
-    end if;
+  if not found then
     -- Leave unmatched events retryable. A fast checkout can race the session-id update.
     return 'unmatched';
   end if;
+
+  if expected_session is distinct from p_session_id
+     or expected_amount <> p_amount_cents
+     or expected_currency <> lower(p_currency) then
+    update public.stripe_webhook_events set processed = true, processed_at = now() where event_id = p_event_id;
+    return 'mismatch';
+  end if;
+
+  if expected_status = 'paid' then
+    update public.stripe_webhook_events set processed = true, processed_at = now() where event_id = p_event_id;
+    return 'already-paid';
+  end if;
+
+  if expected_status <> 'pending' then
+    update public.stripe_webhook_events set processed = true, processed_at = now() where event_id = p_event_id;
+    return 'mismatch';
+  end if;
+
+  update public.orders
+    set status = 'paid', paid_at = coalesce(paid_at, now()), updated_at = now()
+    where id = p_order_id;
 
   update public.stripe_webhook_events set processed = true, processed_at = now() where event_id = p_event_id;
   return 'paid';

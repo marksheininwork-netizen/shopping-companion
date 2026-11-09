@@ -14,7 +14,7 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Test GiftFinder and PriceWatch logic
-        run: node --test tests/commerce.test.mjs
+        run: npm test
       - name: Install Chromium for browser tests
         run: npx playwright install --with-deps chromium
       - name: Build commerce preview
