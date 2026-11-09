@@ -238,4 +238,4 @@ export default {
   }
 };
 
-export { addSupportRequest, download, getSupportRequests, isVerifiedTestCheckoutEvent, listProducts, stripeWebhook };
+export { addSupportRequest, download, getSupportRequests, listProducts, stripeWebhook };
