@@ -93,7 +93,7 @@ test("secure download route denies unpaid and other customers, and streams only 
     return { bind(id, customerId) { return { first: async () => {
       const order = orders.get(id);
       if (!order || order.customer_id !== customerId || order.status !== "paid") return null;
-      return { ...order, file_name: "room-to-grow.zip", content_type: "application/zip", content_base64: bytes.toString("base64") };
+      return { ...order, product_id: "nsc-small-rituals-room-grow", product_status: "active", file_name: "room-to-grow.zip", content_type: "application/zip", content_base64: bytes.toString("base64") };
     } }; } };
   } } };
 
