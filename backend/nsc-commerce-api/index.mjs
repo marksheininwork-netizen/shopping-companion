@@ -52,6 +52,26 @@ export function verifiedCheckoutTotals(session, order) {
   return { subtotal, tax: total - subtotal, total };
 }
 
+export function verifiedTestRefund(event, order) {
+  const charge = event?.data?.object;
+  const amount = Number(charge?.amount_refunded);
+  const total = Number(order?.total_amount_cents);
+  if (
+    event?.type !== "charge.refunded" ||
+    event?.livemode !== false ||
+    charge?.object !== "charge" ||
+    typeof charge.payment_intent !== "string" ||
+    charge.payment_intent !== order?.stripe_payment_intent_id ||
+    String(charge.currency).toLowerCase() !== order?.currency ||
+    !Number.isSafeInteger(total) ||
+    !Number.isSafeInteger(amount) ||
+    amount < 0 ||
+    amount > total ||
+    Number(charge.amount) !== total
+  ) return null;
+  return { refunded: amount, fullyRefunded: charge.refunded === true && amount === total };
+}
+
 export function customerIdentity(accessContext) {
   if (!accessContext || typeof accessContext.getIdentity !== "function") return null;
   return accessContext.getIdentity().then((identity) => {
@@ -174,8 +194,21 @@ async function stripeWebhook(request, env) {
   let event;
   try { event = JSON.parse(rawBody); } catch { return new Response("Invalid event", { status: 400 }); }
   if (typeof event.id !== "string" || typeof event.type !== "string") return new Response("Invalid event", { status: 400 });
-  const supported = new Set(["checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed", "checkout.session.expired"]);
+  const supported = new Set(["checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed", "checkout.session.expired", "charge.refunded"]);
   if (!supported.has(event.type)) return json({ received: true, result: "ignored" });
+  if (event.type === "charge.refunded") {
+    const charge = event.data?.object;
+    if (event.livemode !== false || charge?.object !== "charge" || typeof charge.payment_intent !== "string") return new Response("Refund verification failed", { status: 400 });
+    const order = await env.DB.prepare("SELECT id, status, currency, total_amount_cents, stripe_payment_intent_id FROM orders WHERE stripe_payment_intent_id = ? LIMIT 1").bind(charge.payment_intent).first();
+    if (!order) return json({ received: true, result: "ignored" });
+    const refund = verifiedTestRefund(event, order);
+    if (!refund) return new Response("Refund verification failed", { status: 400 });
+    if (order.status !== "paid" && order.status !== "refunded") return new Response("Order not ready; retry webhook", { status: 503 });
+    await env.DB.prepare("INSERT OR IGNORE INTO stripe_webhook_events (event_id, event_type) VALUES (?, ?)").bind(event.id, event.type).run();
+    await env.DB.prepare("UPDATE orders SET status = CASE WHEN ? = 1 THEN 'refunded' ELSE status END, refunded_amount_cents = MAX(refunded_amount_cents, ?), updated_at = datetime('now') WHERE id = ? AND stripe_payment_intent_id = ? AND status IN ('paid', 'refunded')")
+      .bind(refund.fullyRefunded ? 1 : 0, refund.refunded, order.id, charge.payment_intent).run();
+    return json({ received: true, result: refund.fullyRefunded ? "refunded" : "partially_refunded" });
+  }
   const session = event.data?.object;
   const orderId = session?.client_reference_id || session?.metadata?.order_id;
   if (!session || typeof session.id !== "string" || typeof orderId !== "string") return new Response("Invalid checkout session", { status: 400 });
@@ -197,13 +230,13 @@ async function stripeWebhook(request, env) {
   if (!isPaid) return json({ received: true, result: "unpaid" });
   if (order.status === "paid") return json({ received: true, result: "duplicate" });
   if (order.status !== "pending") return new Response("Order state does not allow payment", { status: 409 });
-  await env.DB.prepare("UPDATE orders SET status = 'paid', tax_amount_cents = ?, total_amount_cents = ?, paid_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND status = 'pending' AND stripe_checkout_session_id = ?")
-    .bind(totals.tax, totals.total, order.id, session.id).run();
+  await env.DB.prepare("UPDATE orders SET status = 'paid', tax_amount_cents = ?, total_amount_cents = ?, stripe_payment_intent_id = ?, paid_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND status = 'pending' AND stripe_checkout_session_id = ?")
+    .bind(totals.tax, totals.total, typeof session.payment_intent === "string" ? session.payment_intent : null, order.id, session.id).run();
   return json({ received: true, result: "paid" });
 }
 
 async function getOrders(env, identity) {
-  const { results = [] } = await env.DB.prepare("SELECT id, product_id, status, amount_cents, tax_amount_cents, total_amount_cents, currency, created_at, paid_at FROM orders WHERE customer_id = ? ORDER BY created_at DESC LIMIT 100")
+  const { results = [] } = await env.DB.prepare("SELECT id, product_id, status, amount_cents, tax_amount_cents, total_amount_cents, refunded_amount_cents, currency, created_at, paid_at FROM orders WHERE customer_id = ? ORDER BY created_at DESC LIMIT 100")
     .bind(identity.id).all();
   return results;
 }
