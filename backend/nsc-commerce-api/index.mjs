@@ -166,7 +166,7 @@ async function stripeWebhook(request, env) {
   let event;
   try { event = JSON.parse(rawBody); } catch { return new Response("Invalid event", { status: 400 }); }
   if (typeof event.id !== "string" || typeof event.type !== "string") return new Response("Invalid event", { status: 400 });
-  const supported = new Set(["checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed"]);
+  const supported = new Set(["checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed", "checkout.session.expired"]);
   if (!supported.has(event.type)) return json({ received: true, result: "ignored" });
   const session = event.data?.object;
   const orderId = session?.client_reference_id || session?.metadata?.order_id;
@@ -176,7 +176,7 @@ async function stripeWebhook(request, env) {
   if (!isVerifiedTestCheckoutEvent(event, order) || order.stripe_checkout_session_id !== session.id) return new Response("Order verification failed", { status: 400 });
 
   const paymentStatus = session.payment_status;
-  const eventIsFailed = event.type === "checkout.session.async_payment_failed";
+  const eventIsFailed = event.type === "checkout.session.async_payment_failed" || event.type === "checkout.session.expired";
   const isPaid = paymentStatus === "paid" && event.type !== "checkout.session.async_payment_failed";
   const totals = isPaid ? verifiedCheckoutTotals(session, order) : null;
   if (isPaid && !totals) return new Response("Order verification failed", { status: 400 });
