@@ -32,8 +32,8 @@ test("default manual price observation date saves and persists", async ({ page }
   await expect(page.getByText("$ 12.34")).toBeVisible();
 });
 
-test("unconfigured account and download access are clearly unavailable", async ({ page }) => {
-  await expect(page.getByText("No account sign-in is configured.")).toBeVisible();
+test("account sign-in is available and paid downloads stay hidden until an order exists", async ({ page }) => {
+  await expect(page.getByRole("link", { name: "Sign in with email" })).toHaveAttribute("href", /\/api\/v1\/customer\/sign-in$/);
   await expect(page.getByText(/Formatted review packages are prepared locally\. Final license approval and private download delivery are not enabled\./i)).toBeVisible();
   await expect(page.getByRole("link", { name: /download/i })).toHaveCount(0);
 });
