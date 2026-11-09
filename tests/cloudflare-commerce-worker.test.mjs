@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import commerceWorker, { checkoutIsEnabled, canCheckoutProduct, customerIdentity, canDownloadOrder, download, verifyStripeSignature, isVerifiedTestCheckoutEvent, isStagingTestProduct, addSupportRequest, getSupportRequests, verifiedCheckoutTotals } from "../backend/nsc-commerce-api/index.mjs";
+import commerceWorker, { checkoutIsEnabled, canCheckoutProduct, customerIdentity, canDownloadOrder, download, verifyStripeSignature, isVerifiedTestCheckoutEvent, isStagingTestProduct, addSupportRequest, getSupportRequests, verifiedCheckoutTotals, verifiedTestRefund } from "../backend/nsc-commerce-api/index.mjs";
 
 test("test-only checkout requires a restricted test key and a configured signing secret", () => {
   assert.equal(checkoutIsEnabled(undefined, "sk_test_value", "whsec_test_fixture"), false);
@@ -54,6 +54,20 @@ test("paid Checkout totals verify the exclusive product subtotal and preserve co
   assert.equal(verifiedCheckoutTotals({ amount_subtotal: 600, amount_total: 670, currency: "usd" }, order), null);
   assert.equal(verifiedCheckoutTotals({ amount_subtotal: 800, amount_total: 799, currency: "usd" }, order), null);
   assert.equal(verifiedCheckoutTotals({ amount_subtotal: 800, amount_total: 870, currency: "cad" }, order), null);
+});
+
+test("Stripe refunds must match the paid Natural Studio test order and full refunds revoke entitlement", () => {
+  const order = { status: "paid", currency: "usd", total_amount_cents: 870, stripe_payment_intent_id: "pi_nsc_test_1" };
+  const makeEvent = (overrides = {}) => ({
+    type: "charge.refunded",
+    livemode: false,
+    data: { object: { object: "charge", payment_intent: "pi_nsc_test_1", currency: "usd", amount: 870, amount_refunded: 870, refunded: true, ...overrides } }
+  });
+  assert.deepEqual(verifiedTestRefund(makeEvent(), order), { refunded: 870, fullyRefunded: true });
+  assert.deepEqual(verifiedTestRefund(makeEvent({ amount_refunded: 400, refunded: false }), order), { refunded: 400, fullyRefunded: false });
+  assert.equal(verifiedTestRefund(makeEvent({ payment_intent: "pi_other" }), order), null);
+  assert.equal(verifiedTestRefund({ ...makeEvent(), livemode: true }, order), null);
+  assert.equal(verifiedTestRefund(makeEvent({ amount: 800 }), order), null);
 });
 
 test("Access identity requires a verified-looking email and uses its stable subject or verified email", async () => {
