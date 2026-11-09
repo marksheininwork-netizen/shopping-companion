@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateBudgetRemaining, calculateOfferTotal } from "../src/shoppingMath.js";
+import { calculateBudgetRemaining, calculateOfferTotal, readShoppingBudget } from "../src/shoppingMath.js";
 import { parseShoppingBackup, parseShoppingItems, serializeShoppingBackup } from "../src/shoppingData.js";
 
 const legacyItem = { id: "saved-1", name: "Notebook", category: "Wishlist", completed: false, quantity: 2, price: 4.5, url: "https://shop.example/notebook" };
@@ -31,4 +31,11 @@ test("backup validation rejects malformed records and unsafe product links", () 
   assert.throws(() => parseShoppingBackup("{"), SyntaxError);
   assert.throws(() => parseShoppingItems(JSON.stringify([{ ...legacyItem, url: "javascript:alert(1)" }])), /Invalid shopping items/);
   assert.throws(() => parseShoppingItems(JSON.stringify([{ ...legacyItem, quantity: 0 }])), /Invalid shopping items/);
+});
+
+test("zero-value budget remains saved and invalid budget values are ignored", () => {
+  assert.equal(readShoppingBudget("0"), "0");
+  assert.equal(readShoppingBudget("25.5"), "25.5");
+  assert.equal(readShoppingBudget(null), "");
+  assert.equal(readShoppingBudget("not a number"), "");
 });
