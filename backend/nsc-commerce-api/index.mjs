@@ -205,6 +205,10 @@ export default {
       if (!path.startsWith(CUSTOMER_PREFIX)) return json({ error: "Not found." }, 404, cors);
       const identity = await customerIdentity(ctx?.access);
       if (!identity) return json({ error: "Verified customer sign-in is required." }, 401, cors);
+      if (request.method === "GET" && path === CUSTOMER_PREFIX + "sign-in") {
+        if (!env.PUBLIC_SITE_ORIGIN) return json({ error: "The staging storefront is not configured." }, 503, cors);
+        return Response.redirect(new URL("/commerce?account=connected#account", env.PUBLIC_SITE_ORIGIN).toString(), 303);
+      }
       if (request.method === "GET" && path === CUSTOMER_PREFIX + "me") {
         await upsertCustomer(env.DB, identity);
         return json({ id: identity.id, email: identity.email }, 200, cors);
