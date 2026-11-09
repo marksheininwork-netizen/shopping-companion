@@ -247,4 +247,4 @@ export default {
   }
 };
 
-export { addSupportRequest, canCheckoutProduct, download, getSupportRequests, listProducts, stripeWebhook };
+export { addSupportRequest, download, getSupportRequests, listProducts, stripeWebhook };
