@@ -9,9 +9,10 @@ export function customerIdentity(accessContext) {
   if (!accessContext || typeof accessContext.getIdentity !== "function") return null;
   return accessContext.getIdentity().then((identity) => {
     if (!identity || typeof identity.email !== "string" || !identity.email.includes("@")) return null;
-    const id = typeof identity.id === "string" ? identity.id : (typeof identity.sub === "string" ? identity.sub : "");
+    const email = identity.email.trim().toLowerCase();
+    const id = typeof identity.id === "string" ? identity.id : (typeof identity.sub === "string" ? identity.sub : email);
     if (!id || id.length > 255) return null;
-    return { id, email: identity.email.trim().toLowerCase() };
+    return { id, email };
   }).catch(() => null);
 }
 
