@@ -2,12 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import commerceWorker, { checkoutIsEnabled, canCheckoutProduct, customerIdentity, canDownloadOrder, download, verifyStripeSignature, isVerifiedTestCheckoutEvent, addSupportRequest, getSupportRequests } from "../backend/nsc-commerce-api/index.mjs";
 
-test("test-only checkout stays fail-closed unless explicitly enabled", () => {
-  assert.equal(checkoutIsEnabled(undefined, "sk_test_value"), false);
-  assert.equal(checkoutIsEnabled("true", "sk_live_value"), false);
-  assert.equal(checkoutIsEnabled("true", "sk_test_value"), true);
-  assert.equal(checkoutIsEnabled("true", "rk_test_restricted"), true);
-  assert.equal(checkoutIsEnabled("true", "rk_live_restricted"), false);
+test("test-only checkout requires a restricted test key and a configured signing secret", () => {
+  assert.equal(checkoutIsEnabled(undefined, "sk_test_value", "whsec_test_fixture"), false);
+  assert.equal(checkoutIsEnabled("true", "sk_live_value", "whsec_test_fixture"), false);
+  assert.equal(checkoutIsEnabled("true", "sk_test_value", ""), false);
+  assert.equal(checkoutIsEnabled("true", "sk_test_value", "whsec_test_fixture"), true);
+  assert.equal(checkoutIsEnabled("true", "rk_test_restricted", "whsec_test_fixture"), true);
+  assert.equal(checkoutIsEnabled("true", "rk_live_restricted", "whsec_test_fixture"), false);
 });
 
 test("digital checkout requires an approved Stripe Price mapping", () => {
