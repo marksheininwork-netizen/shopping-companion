@@ -1,6 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { calculateBudgetRemaining, calculateOfferTotal } from "./shoppingMath.js";
+import { parseShoppingBackup, parseShoppingItems, serializeShoppingBackup } from "./shoppingData.js";
 import {
   ShoppingCart,
   Heart,
@@ -47,7 +48,7 @@ const categories: Category[] = [
 function loadItems(): ShoppingItem[] {
   try {
     const saved = localStorage.getItem("shopping-items");
-    return saved ? JSON.parse(saved) : [];
+    return saved ? parseShoppingItems(saved) : [];
   } catch {
     return [];
   }
@@ -91,18 +92,7 @@ export default function App() {
       return;
     }
     try {
-      const parsed: unknown = JSON.parse(await file.text());
-      if (!parsed || typeof parsed !== "object" || !("items" in parsed)) throw Error("Invalid backup");
-      const incoming = (parsed as { items: unknown }).items;
-      if (!Array.isArray(incoming) || incoming.length > 10000 ||
-        !incoming.every((item: unknown) => {
-          if (!item || typeof item !== "object") return false;
-          const entry = item as Record<string, unknown>;
-          return typeof entry.id === "string" && typeof entry.name === "string" &&
-            entry.name.length <= 500 && (entry.store === undefined || (typeof entry.store === "string" && entry.store.length <= 100)) && (entry.priority === undefined || ["Low","Normal","High"].includes(entry.priority as string)) && (entry.price === undefined || (typeof entry.price === "number" && Number.isFinite(entry.price) && entry.price >= 0)) && (entry.shipping === undefined || (typeof entry.shipping === "number" && Number.isFinite(entry.shipping) && entry.shipping >= 0)) && (entry.estimatedTax === undefined || (typeof entry.estimatedTax === "number" && Number.isFinite(entry.estimatedTax) && entry.estimatedTax >= 0)) && (entry.url === undefined || (typeof entry.url === "string" && entry.url.startsWith("https://"))) && (entry.note === undefined || (typeof entry.note === "string" && entry.note.length <= 2000)) && categories.includes(entry.category as Category) &&
-            typeof entry.completed === "boolean" && Number.isSafeInteger(entry.quantity) &&
-            (entry.quantity as number) >= 1 && (entry.quantity as number) <= 100000;
-        })) throw Error("Invalid shopping items");
+      const incoming = parseShoppingBackup(await file.text());
       if (window.confirm("Replace your current shopping lists with this backup?")) {
         setItems(incoming as ShoppingItem[]);
       }
@@ -112,7 +102,7 @@ export default function App() {
   }
 
   function exportItems() {
-    const blob = new Blob([JSON.stringify({ version: 1, items }, null, 2)], { type: "application/json" });
+    const blob = new Blob([serializeShoppingBackup(items)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
