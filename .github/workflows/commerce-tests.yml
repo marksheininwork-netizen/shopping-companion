@@ -21,6 +21,10 @@ jobs:
         run: npm run build
       - name: Test desktop and mobile commerce flows
         run: npm run test:e2e
+      - name: Verify deployed staging HTTP security and Access protection
+        run: npm run test:staging
+        env:
+          STAGING_BASE_URL: https://natural-studio-commerce-staging.pages.dev
       - name: Upload browser traces on failure
         if: failure()
         uses: actions/upload-artifact@v4
