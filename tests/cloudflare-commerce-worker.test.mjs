@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import commerceWorker, { checkoutIsEnabled, customerIdentity, canDownloadOrder, download, verifyStripeSignature, isVerifiedTestCheckoutEvent, addSupportRequest, getSupportRequests } from "../backend/nsc-commerce-api/index.mjs";
+import commerceWorker, { checkoutIsEnabled, canCheckoutProduct, customerIdentity, canDownloadOrder, download, verifyStripeSignature, isVerifiedTestCheckoutEvent, addSupportRequest, getSupportRequests } from "../backend/nsc-commerce-api/index.mjs";
 
 test("test-only checkout stays fail-closed unless explicitly enabled", () => {
   assert.equal(checkoutIsEnabled(undefined, "sk_test_value"), false);
@@ -8,6 +8,15 @@ test("test-only checkout stays fail-closed unless explicitly enabled", () => {
   assert.equal(checkoutIsEnabled("true", "sk_test_value"), true);
   assert.equal(checkoutIsEnabled("true", "rk_test_restricted"), true);
   assert.equal(checkoutIsEnabled("true", "rk_live_restricted"), false);
+});
+
+test("digital checkout requires an approved Stripe Price mapping", () => {
+  const base = { is_download: 1, price_cents: 800, stripe_price_id: "price_NSCtest123" };
+  assert.equal(canCheckoutProduct(base), true);
+  assert.equal(canCheckoutProduct({ ...base, stripe_price_id: null }), false);
+  assert.equal(canCheckoutProduct({ ...base, stripe_price_id: "northstar_price" }), false);
+  assert.equal(canCheckoutProduct({ ...base, price_cents: null }), false);
+  assert.equal(canCheckoutProduct({ ...base, is_download: 0 }), false);
 });
 
 test("Stripe fulfillment is bound to the test mode payment, order, and NSC product", () => {
