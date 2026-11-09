@@ -1,4 +1,4 @@
-import commerceWorker from "../../../backend/nsc-commerce-api/index.mjs";
+import commerceWorker from "../../../../backend/nsc-commerce-api/index.mjs";
 
 const JSON_HEADERS = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
 let cachedJwks;
