@@ -40,7 +40,7 @@ test("default manual price observation date saves and persists", async ({ page }
 
 test("account sign-in is available and paid downloads stay hidden until an order exists", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Sign in with email" })).toHaveAttribute("href", /\/api\/v1\/customer\/sign-in$/);
-  await expect(page.getByText(/Formatted review packages are prepared locally\. Final license approval and private download delivery are not enabled\./i)).toBeVisible();
+  await expect(page.getByText(/Review packages are prepared for owner review\. Final license approval and private customer download delivery are not enabled\./i)).toBeVisible();
   await expect(page.getByRole("link", { name: /download/i })).toHaveCount(0);
 });
 
