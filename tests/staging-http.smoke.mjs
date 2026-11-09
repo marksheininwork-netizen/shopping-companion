@@ -6,6 +6,22 @@ async function request(path) {
   return fetch(baseUrl + path, { redirect: "manual", headers: { "User-Agent": "natural-studio-commerce-staging-smoke/1.0" } });
 }
 
+const apiBaseUrl = (process.env.STAGING_API_BASE_URL || "https://nsc-commerce-api-staging.marksheininwork.workers.dev").replace(/\/$/, "");
+const apiHealth = await fetch(apiBaseUrl + "/api/v1/health", { headers: { "User-Agent": "natural-studio-commerce-staging-smoke/1.0" } });
+assert.equal(apiHealth.status, 200, "staging commerce Worker health route should return HTTP 200");
+assert.deepEqual(await apiHealth.json(), { ok: true, service: "nsc-commerce-api" });
+
+const apiProducts = await fetch(apiBaseUrl + "/api/v1/products", { headers: { "User-Agent": "natural-studio-commerce-staging-smoke/1.0" } });
+assert.equal(apiProducts.status, 200, "staging product endpoint should return HTTP 200");
+assert.deepEqual((await apiProducts.json()).products, [], "unpublished draft products must not be exposed by the public catalog");
+
+const unsignedWebhook = await fetch(apiBaseUrl + "/api/v1/webhooks/stripe", {
+  method: "POST",
+  headers: { "Content-Type": "application/json", "User-Agent": "natural-studio-commerce-staging-smoke/1.0" },
+  body: "{}"
+});
+assert.equal(unsignedWebhook.status, 400, "staging webhook must reject unsigned requests");
+
 const storefront = await request("/commerce");
 assert.equal(storefront.status, 200, "staging storefront should return HTTP 200");
 const robots = (storefront.headers.get("x-robots-tag") || "").toLowerCase();
