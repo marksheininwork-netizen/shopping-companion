@@ -125,6 +125,9 @@ async function checkout(request, env, identity) {
   form.set("metadata[product_id]", product.id);
   form.set("success_url", env.PUBLIC_SITE_ORIGIN + "/commerce?order=" + encodeURIComponent(orderId));
   form.set("cancel_url", env.PUBLIC_SITE_ORIGIN + "/commerce?checkout=cancelled");
+  form.set("automatic_tax[enabled]", "true");
+  const integrationSuffix = Array.from(crypto.getRandomValues(new Uint8Array(8)), (byte) => String.fromCharCode(97 + (byte % 26))).join("");
+  form.set("integration_identifier", "nsc-staging-" + integrationSuffix);
 
   const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
     method: "POST",
@@ -159,7 +162,10 @@ async function stripeWebhook(request, env) {
   const paymentStatus = session.payment_status;
   const eventIsFailed = event.type === "checkout.session.async_payment_failed";
   const isPaid = paymentStatus === "paid" && event.type !== "checkout.session.async_payment_failed";
-  if (isPaid && (Number(session.amount_total) !== order.amount_cents || String(session.currency).toLowerCase() !== order.currency)) return new Response("Order verification failed", { status: 400 });
+  const subtotal = Number(session.amount_subtotal);
+  const total = Number(session.amount_total);
+  const taxAmount = total - subtotal;
+  if (isPaid && (!Number.isSafeInteger(subtotal) || subtotal !== order.amount_cents || !Number.isSafeInteger(total) || total < subtotal || !Number.isSafeInteger(taxAmount) || String(session.currency).toLowerCase() !== order.currency)) return new Response("Order verification failed", { status: 400 });
 
   await env.DB.prepare("INSERT OR IGNORE INTO stripe_webhook_events (event_id, event_type) VALUES (?, ?)").bind(event.id, event.type).run();
   if (eventIsFailed) {
@@ -169,13 +175,13 @@ async function stripeWebhook(request, env) {
   if (!isPaid) return json({ received: true, result: "unpaid" });
   if (order.status === "paid") return json({ received: true, result: "duplicate" });
   if (order.status !== "pending") return new Response("Order state does not allow payment", { status: 409 });
-  await env.DB.prepare("UPDATE orders SET status = 'paid', paid_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND status = 'pending' AND stripe_checkout_session_id = ?")
-    .bind(order.id, session.id).run();
+  await env.DB.prepare("UPDATE orders SET status = 'paid', tax_amount_cents = ?, total_amount_cents = ?, paid_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND status = 'pending' AND stripe_checkout_session_id = ?")
+    .bind(taxAmount, total, order.id, session.id).run();
   return json({ received: true, result: "paid" });
 }
 
 async function getOrders(env, identity) {
-  const { results = [] } = await env.DB.prepare("SELECT id, product_id, status, amount_cents, currency, created_at, paid_at FROM orders WHERE customer_id = ? ORDER BY created_at DESC LIMIT 100")
+  const { results = [] } = await env.DB.prepare("SELECT id, product_id, status, amount_cents, tax_amount_cents, total_amount_cents, currency, created_at, paid_at FROM orders WHERE customer_id = ? ORDER BY created_at DESC LIMIT 100")
     .bind(identity.id).all();
   return results;
 }
