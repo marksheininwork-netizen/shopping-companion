@@ -27,3 +27,10 @@
 - Start with a small original cohesive collection, check print-safe artwork and proof mockups.
 - Calculate margin using retail price minus production, shipping subsidy, transaction/platform fees, taxes borne by seller, and refund reserve.
 - Publish only after product details and financial exposure are reviewed.
+
+
+## Implemented in review branch (2026-11-08)
+
+The `natural-studio-commerce-shopping-tools` branch adds a user-entered shopping budget, item-level manual shipping and tax estimates, and a multi-item comparison view. Existing saved item records remain compatible; the optional estimates are included in JSON backups. The interface labels all comparison values as estimates and reminds shoppers to confirm retailer totals. The feature uses browser-local storage only and does not fetch live merchant prices.
+
+The app's accents and metadata now use the Natural Studio Commerce palette and label. The portfolio brand system is documented in [NATURAL_STUDIO_COMMERCE_BRAND_SYSTEM.md](./NATURAL_STUDIO_COMMERCE_BRAND_SYSTEM.md). These changes are awaiting review and build verification; they do not publish to the production app.
