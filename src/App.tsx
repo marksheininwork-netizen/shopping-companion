@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from "react";
+import { calculateBudgetRemaining, calculateOfferTotal } from "./shoppingMath.js";
 import {
   ShoppingCart,
   Heart,
@@ -200,7 +201,7 @@ export default function App() {
   }
 
   const comparedItems = items.filter((item) => compareIds.includes(item.id));
-  const comparisonTotal = (item: ShoppingItem) => (item.price ?? 0) * item.quantity + (item.shipping ?? 0) + (item.estimatedTax ?? 0);
+  const comparisonTotal = (item: ShoppingItem) => calculateOfferTotal(item.price ?? 0, item.quantity, item.shipping ?? 0, item.estimatedTax ?? 0);
   const visibleItems = items.filter(
     (item) =>
       item.category === category &&
@@ -274,7 +275,7 @@ export default function App() {
               <label className="budget-control">Monthly or trip budget ($)
                 <input type="number" min="0" step="0.01" value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="Optional" aria-label="Shopping budget" />
               </label>
-              <div className="budget-status" aria-live="polite">{budget.trim() ? `${Math.max(0, Number(budget) - estimatedTotal).toFixed(2)} left of ${Number(budget).toFixed(2)}` : "No budget set"}</div>
+              <div className="budget-status" aria-live="polite">{budget.trim() ? `${calculateBudgetRemaining(Number(budget), estimatedTotal).toFixed(2)} left of ${Number(budget).toFixed(2)}` : "No budget set"}</div>
             </div>
           </section>
           <section className="panel">
