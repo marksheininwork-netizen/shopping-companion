@@ -38,3 +38,7 @@ The app's accents and metadata now use the Natural Studio Commerce palette and l
 
 ## Integration branch
 The Natural Studio Commerce storefront and Shopping Companion changes are combined on `natural-studio-commerce-integration` for joint verification. The two original PRs remain open and unmerged.
+
+
+## Joint verification (2026-11-09)
+The integration branch combines the store and Shopping Companion changes. CI runs Node regression tests, GiftFinder/PriceWatch logic checks, Vite typecheck/build, Playwright desktop and Pixel 7 browser flows, and a storefront accessibility smoke audit. These checks do not imply checkout, accounts, or digital delivery are enabled.
