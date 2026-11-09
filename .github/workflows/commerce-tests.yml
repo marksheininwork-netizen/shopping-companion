@@ -13,3 +13,16 @@ jobs:
           node-version: "22"
       - name: Test GiftFinder and PriceWatch logic
         run: node --test tests/commerce.test.mjs
+      - name: Install Chromium for browser tests
+        run: npx playwright install --with-deps chromium
+      - name: Build commerce preview
+        run: npm run build
+      - name: Test desktop and mobile commerce flows
+        run: npm run test:e2e
+      - name: Upload browser traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
