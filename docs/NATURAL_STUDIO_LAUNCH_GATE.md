@@ -20,7 +20,7 @@ Status: internal staging readiness record. This is not customer policy, legal ad
 
 ## Product and file readiness
 
-- The two Small Rituals digital products are still `draft`, are not published, and have `price_cents = NULL`. The two prepared ZIP archives passed archive-integrity checks and contain the expected SVG/PDF files, draft personal-use license, and read-me. SHA-256 checksums and file lists are recorded in [NATURAL_STUDIO_PRODUCT_DRAFTS.md](NATURAL_STUDIO_PRODUCT_DRAFTS.md).
+- The two Small Rituals digital products remain `draft` and unpublished; their D1 prices are now mapped to the verified Stripe test Prices ($8 and $6). The two prepared ZIP archives passed archive-integrity checks and contain the expected SVG/PDF files, draft personal-use license, and read-me. SHA-256 checksums and file lists are recorded in [NATURAL_STUDIO_PRODUCT_DRAFTS.md](NATURAL_STUDIO_PRODUCT_DRAFTS.md).
 - Storefront previews are original vector concept images, not Printify supplier mockups or production proofs. The ZIP packages are review deliverables, not authorized purchase downloads. Draft licenses require owner/legal review of the legal seller, rights-holder, jurisdiction, consent, refund, and accessibility terms.
 - Product archive bytes are currently stored in the dedicated D1 database, not public GitHub or a public asset URL. This is acceptable only as a small staging arrangement; choose and verify a private object store before expanding delivery. R2 is not enabled, and must not be enabled if it would incur a cost without approval.
 
@@ -46,8 +46,8 @@ Cloudflare Access is suitable for the private staging/admin gate, not an open co
 
 ## Remaining owner decisions before launch
 
-1. Provide an authorized staging PIN inbox/session (and a second distinct authorized identity) to complete live two-user isolation, signed support, and ownership/download checks.
-2. Decide whether the Maria Sheinin Stripe test account can have a separately identified NSC test catalog, or authorize a dedicated Stripe test environment/account. Supply test secrets only through Cloudflare Worker secret settings after NSC prices are approved.
-3. Reauthorize Printify read scopes and approve final supplier-linked products, prices, and shipping.
-4. Confirm legal seller/rights-holder, approved product prices/licenses, customer support destination, and final customer policies before sales.
-5. Keep PR #4 in draft; do not merge, publish products, switch checkout on, or alter production without explicit approval.
+1. Sign into the Maria Sheinin Stripe Dashboard test mode, create a restricted test API key limited to Checkout Session creation (plus any minimum read access Stripe requires), and store it as the encrypted Cloudflare Worker secret `STRIPE_SECRET_KEY`. The staging Worker currently has no Stripe API key, and the connected account is not available in the logged-in browser session.
+2. Complete an authorized Cloudflare Access PIN session for one staging customer and a second distinct authorized identity to verify live account isolation, order ownership, signed support, and download permissions. Do not share PIN codes in chat.
+3. Review the product tax classification with a qualified tax professional; Stripe’s current test calculation marks the configured product tax code exempt. Do not change tax settings or codes without an informed decision.
+4. Reauthorize Printify read scopes for the existing Natural Studio shop before adding supplier-confirmed physical products. Final product, license, support destination, and customer policy approvals remain launch decisions.
+5. Keep PR #4 in draft. Do not merge, publish the digital products, enable customer checkout, alter production, or activate live payments without explicit approval.
