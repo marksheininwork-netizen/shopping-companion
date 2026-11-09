@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { calculateBudgetRemaining, calculateOfferTotal } from "./shoppingMath.js";
+import { calculateBudgetRemaining, calculateOfferTotal, readShoppingBudget } from "./shoppingMath.js";
 import { parseShoppingBackup, parseShoppingItems, serializeShoppingBackup } from "./shoppingData.js";
 import {
   ShoppingCart,
@@ -63,10 +63,7 @@ export default function App() {
   const [newShipping, setNewShipping] = useState("");
   const [newTax, setNewTax] = useState("");
   const [compareIds, setCompareIds] = useState<string[]>([]);
-  const [budget, setBudget] = useState(() => {
-    const saved = Number(localStorage.getItem("shopping-budget"));
-    return Number.isFinite(saved) && saved >= 0 ? String(saved || "") : "";
-  });
+  const [budget, setBudget] = useState(() => readShoppingBudget(localStorage.getItem("shopping-budget")));
   const [newUrl, setNewUrl] = useState("");
   const [newNote, setNewNote] = useState("");
   const [newStore, setNewStore] = useState("");
