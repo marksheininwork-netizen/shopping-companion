@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import { ArrowRight, Check, CircleDollarSign, Gift, Heart, Leaf, Menu, Search, ShieldCheck, ShoppingBag, Sparkles, Trash2, X } from "lucide-react";
 import { filterGiftIdeas, validatePriceObservation } from "./commerceLogic.js";
 
