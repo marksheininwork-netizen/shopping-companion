@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import commerceWorker, { checkoutIsEnabled, canCheckoutProduct, customerIdentity, canDownloadOrder, download, verifyStripeSignature, isVerifiedTestCheckoutEvent, addSupportRequest, getSupportRequests, verifiedCheckoutTotals } from "../backend/nsc-commerce-api/index.mjs";
+import commerceWorker, { checkoutIsEnabled, canCheckoutProduct, customerIdentity, canDownloadOrder, download, verifyStripeSignature, isVerifiedTestCheckoutEvent, isStagingTestProduct, addSupportRequest, getSupportRequests, verifiedCheckoutTotals } from "../backend/nsc-commerce-api/index.mjs";
 
 test("test-only checkout requires a restricted test key and a configured signing secret", () => {
   assert.equal(checkoutIsEnabled(undefined, "sk_test_value", "whsec_test_fixture"), false);
@@ -9,6 +9,15 @@ test("test-only checkout requires a restricted test key and a configured signing
   assert.equal(checkoutIsEnabled("true", "sk_test_value", "whsec_test_fixture"), true);
   assert.equal(checkoutIsEnabled("true", "rk_test_restricted", "whsec_test_fixture"), true);
   assert.equal(checkoutIsEnabled("true", "rk_live_restricted", "whsec_test_fixture"), false);
+});
+
+test("draft products are available only to the staging test allowlist", () => {
+  const draft = { id: "nsc-small-rituals-room-grow", status: "draft" };
+  assert.equal(isStagingTestProduct(draft, "false", draft.id), false);
+  assert.equal(isStagingTestProduct(draft, "true", ""), false);
+  assert.equal(isStagingTestProduct(draft, "true", "another-product"), false);
+  assert.equal(isStagingTestProduct(draft, "true", draft.id), true);
+  assert.equal(isStagingTestProduct({ ...draft, status: "active" }, "false", ""), true);
 });
 
 test("digital checkout requires an approved Stripe Price mapping", () => {
