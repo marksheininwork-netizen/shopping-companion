@@ -3,6 +3,12 @@ import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/commerce.html");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+});
+
+test("Shopping Companion preview also carries a noindex directive", async ({ page }) => {
+  await page.goto("/index.html");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 });
 
 test("catalog search and saved ideas work across reloads", async ({ page }) => {
