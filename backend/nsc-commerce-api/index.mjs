@@ -17,6 +17,17 @@ export function isVerifiedTestCheckoutEvent(event, order) {
   );
 }
 
+export function canCheckoutProduct(product) {
+  return Boolean(
+    product &&
+    product.is_download === 1 &&
+    Number.isSafeInteger(product.price_cents) &&
+    product.price_cents > 0 &&
+    typeof product.stripe_price_id === "string" &&
+    /^price_[A-Za-z0-9]+$/.test(product.stripe_price_id)
+  );
+}
+
 export function customerIdentity(accessContext) {
   if (!accessContext || typeof accessContext.getIdentity !== "function") return null;
   return accessContext.getIdentity().then((identity) => {
@@ -93,9 +104,9 @@ async function checkout(request, env, identity) {
   try { input = await readJson(request); } catch { return json({ error: "Invalid request." }, 400); }
   if (typeof input.product_id !== "string" || input.product_id.length > 80) return json({ error: "Choose an available product." }, 400);
 
-  const product = await env.DB.prepare("SELECT id, slug, title, price_cents, currency, is_download FROM products WHERE id = ? AND status = 'active' LIMIT 1")
+  const product = await env.DB.prepare("SELECT id, slug, title, price_cents, currency, is_download, stripe_price_id FROM products WHERE id = ? AND status = 'active' LIMIT 1")
     .bind(input.product_id).first();
-  if (!product || product.is_download !== 1 || !Number.isSafeInteger(product.price_cents) || product.price_cents <= 0) return json({ error: "This product is not available for checkout." }, 404);
+  if (!canCheckoutProduct(product)) return json({ error: "This product is not available for checkout." }, 404);
   const asset = await env.DB.prepare("SELECT product_id FROM product_assets WHERE product_id = ? LIMIT 1").bind(product.id).first();
   if (!asset) return json({ error: "This download is not configured." }, 404);
 
@@ -107,9 +118,7 @@ async function checkout(request, env, identity) {
   const form = new URLSearchParams();
   form.set("mode", "payment");
   form.set("line_items[0][quantity]", "1");
-  form.set("line_items[0][price_data][currency]", product.currency);
-  form.set("line_items[0][price_data][unit_amount]", String(product.price_cents));
-  form.set("line_items[0][price_data][product_data][name]", product.title);
+  form.set("line_items[0][price]", product.stripe_price_id);
   form.set("customer_email", identity.email);
   form.set("client_reference_id", orderId);
   form.set("metadata[order_id]", orderId);
@@ -238,4 +247,4 @@ export default {
   }
 };
 
-export { addSupportRequest, download, getSupportRequests, listProducts, stripeWebhook };
+export { addSupportRequest, canCheckoutProduct, download, getSupportRequests, listProducts, stripeWebhook };
